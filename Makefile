@@ -1,13 +1,7 @@
-# Makefile for managing the Docker-based development environment.
+COMPOSE_FILE = -f docker-compose.localstack.yaml
 
-# Use a variable for the compose file to keep things DRY (Don't Repeat Yourself).
-COMPOSE_FILE = -f docker-compose.local.yaml
-
-# By declaring targets as .PHONY, we tell 'make' that these are command recipes,
-# not files to be created. This prevents conflicts with files of the same name.
 .PHONY: help build test test-unit test-integration up down logs clean
 
-# Set the default command to 'help' if 'make' is run without arguments.
 .DEFAULT_GOAL := help
 
 help:
