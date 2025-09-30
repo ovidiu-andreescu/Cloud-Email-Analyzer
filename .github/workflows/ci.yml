@@ -27,7 +27,7 @@ jobs:
 
       - name: Build and Run Unit Tests
         run: >
-          docker compose -f docker-compose.local.yaml run --rm --build tests /app/scripts/run_tests.sh unit
+          docker compose -f docker-compose.localstack.yaml run --rm --build tests /app/scripts/run_tests.sh unit
         env:
           DOCKER_BUILDKIT: 1
 
@@ -52,10 +52,10 @@ jobs:
 
       - name: Run Integration Tests
         run: >
-          docker compose -f docker-compose.local.yaml up --build --abort-on-container-exit --exit-code-from tests
+          docker compose -f docker-compose.localstack.yaml up --build --abort-on-container-exit --exit-code-from tests
         env:
           DOCKER_BUILDKIT: 1
 
       - name: Tear down services
         if: always()
-        run: docker compose -f docker-compose.local.yaml down
+        run: docker compose -f docker-compose.localstack.yaml down
