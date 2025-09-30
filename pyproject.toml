@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "cloud-email-analyzer-workspace"
+version = "0.0.0"
+requires-python = ">=3.11"
+
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-cov", "pytest-xdist", "pytest-asyncio", "pytest-randomly",
+  "moto[s3,sqs,lambda,stepfunctions]",
+  "localstack-client",
+  "boto3-stubs[s3,sqs,lambda,sts,stepfunctions]",
+  "ruff",
+  "mypy",
+  "types-requests",
+]
+
+[tool.setuptools]
+packages = []
+py-modules = []

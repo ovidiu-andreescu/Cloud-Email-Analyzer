@@ -1,0 +1,11 @@
+[project]
+name = "services-common"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "boto3",
+    "botocore"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

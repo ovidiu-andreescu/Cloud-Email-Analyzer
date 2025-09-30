@@ -1,0 +1,40 @@
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    user: "root"
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=s3,sqs,lambda,stepfunctions,iam,sts,logs,events,apigateway
+      - AWS_DEFAULT_REGION=eu-central-1
+      - DEBUG=1
+      - LS_LOG=info
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack_data:/var/lib/localstack"
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        PYTHON_VERSION: "3.11"
+    container_name: tests
+    depends_on:
+      localstack:
+        condition: service_started
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=eu-central-1
+      - LOCALSTACK_ENDPOINT=http://localstack:4566
+    volumes:
+      - ./:/app:delegated
+    command: ["/app/scripts/run_tests.sh","integration"]
+
+volumes:
+  localstack_data:
