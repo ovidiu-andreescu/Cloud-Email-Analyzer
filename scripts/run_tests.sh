@@ -3,19 +3,14 @@ set -euo pipefail
 
 MODE="${1:-unit}"
 
-for d in /app/libs/* /app/services/*; do
-  if [ -f "$d/pyproject.toml" ]; then
-    echo "Editable install: $d"
-    pip install -e "$d"
-  fi
-done
-
 export AWS_ENDPOINT_URL="${LOCALSTACK_ENDPOINT:-http://localhost:4566}"
 
+source /opt/venv/bin/activate
+
 if [ "$MODE" = "unit" ]; then
-  pytest -m "not integration"
+  pytest -m "not integration" -v tests/
 elif [ "$MODE" = "integration" ]; then
-  pytest -m integration
+  pytest -m integration -v tests/
 else
-  pytest
+  pytest -v tests/
 fi
