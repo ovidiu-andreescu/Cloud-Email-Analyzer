@@ -1,5 +1,5 @@
-COMPOSE_UNIT = docker compose -f docker-compose.unit.yaml
-COMPOSE_INTEGRATION = docker compose -f docker-compose.localstack.yaml
+COMPOSE_UNIT = docker compose -f docker/docker-compose.unit.yaml
+COMPOSE_INTEGRATION = docker compose -f docker/docker-compose.localstack.yaml
 
 .PHONY: help build-test-env test test-unit test-integration up down logs clean init-tf
 

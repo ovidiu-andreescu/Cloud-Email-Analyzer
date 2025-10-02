@@ -1,6 +1,30 @@
-.venv
-.venv.*
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+build/
+dist/
+*.so
 
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.*.backup
 *.tfvars
+# Keep .tfvars.example files
+!*.tfvars.example
 
-.terraform
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# IDE configuration
+.idea/
+.vscode/
+*.swp

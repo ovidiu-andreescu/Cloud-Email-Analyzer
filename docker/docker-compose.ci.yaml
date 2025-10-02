@@ -34,7 +34,7 @@ services:
       - AWS_DEFAULT_REGION=eu-central-1
       - LOCALSTACK_ENDPOINT=http://localstack:4566
     volumes:
-      - ./:/app:delegated
+      - ../:/app:delegated
 
 volumes:
   localstack_data:
