@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Run unit tests
-        run: docker compose -f docker-compose.unit.yaml run --rm tests /app/scripts/run_tests.sh unit
+        run: docker compose -f docker/docker-compose.unit.yaml run --rm tests /app/scripts/run_tests.sh unit
 
   integration-tests:
     name: Integration Tests
@@ -37,7 +37,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.integration
+          file: docker/Dockerfile.integration
           load: true
           tags: ci-test-image:latest
           cache-from: type=gha
@@ -45,10 +45,10 @@ jobs:
 
       - name: Run integration tests
         run: |
-          docker compose -f docker-compose.ci.yaml up -d
-          docker compose -f docker-compose.ci.yaml run --rm tests /app/scripts/init_localstack.sh
-          docker compose -f docker-compose.ci.yaml run --rm tests /app/scripts/run_tests.sh integration
+          docker compose -f docker/docker-compose.ci.yaml up -d
+          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/init_localstack.sh
+          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/run_tests.sh integration
 
       - name: Tear down services
         if: always()
-        run: docker compose -f docker-compose.ci.yaml down
+        run: docker compose -f docker/docker-compose.ci.yaml down
