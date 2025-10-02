@@ -26,7 +26,3 @@ RUN pip install -U pip wheel && pip install -e .[test]
 
 COPY . .
 RUN chmod +x /app/scripts/*.sh
-
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-RUN chown -R appuser:appuser /app
-USER appuser
