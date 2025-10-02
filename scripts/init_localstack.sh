@@ -9,6 +9,6 @@ terraform init -backend-config="backend.hcl" -reconfigure
 
 terraform workspace select local_dev || terraform workspace new local_dev
 
-terraform apply -var-file="env/local_dev.tfvars" -auto-approve
+terraform apply -var-file="env/ci.tfvars" -auto-approve
 
 echo "LocalStack initialized successfully."
