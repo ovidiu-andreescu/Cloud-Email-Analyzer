@@ -36,7 +36,7 @@ jobs:
       - name: Build and cache integration image
         uses: docker/build-push-action@v5
         with:
-          context: ..
+          context: .
           file: docker/Dockerfile.integration
           load: true
           tags: ci-test-image:latest
