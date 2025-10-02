@@ -31,9 +31,9 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.integration
+          dockerfile: Dockerfile.integration
           load: true
-          tags: ci-integration-image:latest
+          tags: ci-test-image:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
