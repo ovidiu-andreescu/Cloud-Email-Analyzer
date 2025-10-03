@@ -1,4 +1,0 @@
-project = "cloud-email-analyzer"
-env     = "local_dev"
-region  = "eu-central-1"
-tags = { Owner = "ovidiu" }
