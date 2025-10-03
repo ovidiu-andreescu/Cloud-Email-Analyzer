@@ -1,14 +1,22 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
-echo "Initializing LocalStack with local dev Terraform configuration..."
+echo "[init] LocalStack + Terraform (local_dev)"
 
-cd /app/infra/terraform/root
+export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-test}"
+export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-test}"
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-eu-central-1}"
+export TF_IN_AUTOMATION=1
 
-terraform init -backend-config="backend.hcl" -reconfigure
+cd /app/infra/terraform
 
-terraform workspace select local_dev || terraform workspace new local_dev
+terraform init -reconfigure -backend=false
 
-terraform apply -var-file="env/ci.tfvars" -auto-approve
+terraform workspace select local-dev || terraform workspace new local-dev
 
-echo "LocalStack initialized successfully."
+terraform apply \
+  -input=false \
+  -auto-approve \
+  -var-file="../env/local_dev/terraform.tfvars"
+
+echo "[done] LocalStack initialized successfully."
