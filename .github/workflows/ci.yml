@@ -26,8 +26,8 @@ jobs:
 
       - name: Create tfvars file from secret
         run: |
-          mkdir -p infra/terraform/root/env
-          cat > infra/terraform/root/env/ci.tfvars <<'EOF'
+          mkdir -p infra/env/local_dev/
+          cat > infra/env/local_dev/terraform.tfvars<<'EOF'
           ${{ secrets.TF_VARS_CI }}
           EOF
       - name: Set up Docker Buildx
