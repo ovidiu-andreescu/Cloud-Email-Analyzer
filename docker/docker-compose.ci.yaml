@@ -16,25 +16,25 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "localstack_data:/var/lib/localstack"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
 
   tests:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      args:
-        PYTHON_VERSION: "3.11"
+    image: ci-test-image:latest
     container_name: tests
     depends_on:
       localstack:
-        condition: service_started
+        condition: service_healthy
     environment:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_DEFAULT_REGION=eu-central-1
       - LOCALSTACK_ENDPOINT=http://localstack:4566
     volumes:
-      - ./:/app:delegated
-    command: ["/app/scripts/run_tests.sh","integration"]
+      - ../:/app:delegated
 
 volumes:
   localstack_data:

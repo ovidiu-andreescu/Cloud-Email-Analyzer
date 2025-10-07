@@ -1,0 +1,10 @@
+name: unit-test-suite
+
+services:
+  tests:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.unit
+    container_name: unit-tests-runner
+    volumes:
+      - ../:/app:delegated
