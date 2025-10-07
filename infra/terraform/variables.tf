@@ -40,3 +40,9 @@ variable "lambda_defs" {
   }))
   default = {}
 }
+
+variable "kms_key_arn" {
+  description = "The ARN of the KMS key for encrypting resources."
+  type        = string
+  default     = null
+}

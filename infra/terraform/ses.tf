@@ -24,7 +24,7 @@ resource "aws_route53_record" "dkim" {
   name    = "${aws_ses_domain_dkim.dkim[0].dkim_tokens[count.index]}._domainkey.${var.domain_name}"
   type    = "CNAME"
   ttl     = 300
-  records = ["${aws_ses_domain_dkim.dkim[0].dkim_tokens[count.index]}.dkim.amazonses.com"]
+  records = ["${aws_ses_domain_dkim.dkim[0].dkim_tokens[count.index]}.dkim.amazonses.com."]
 }
 
 resource "aws_route53_record" "ses_verif" {
@@ -62,20 +62,14 @@ resource "aws_ses_receipt_rule" "inbound" {
   recipients    = [var.domain_name]
   enabled       = true
   scan_enabled  = true
+  tls_policy    = "Optional"
 
   s3_action {
     bucket_name = aws_s3_bucket.inbound.bucket
     object_key_prefix = "inbound/"
+    kms_key_arn = var.kms_key_arn
     position = 1
   }
-
-  lambda_action {
-    function_arn = aws_lambda_function.fn["email_processor"].arn
-    invocation_type = "Event"
-    position = 2
-  }
-
-  depends_on = [aws_lambda_permission.allow_ses]
 }
 
 resource "aws_lambda_permission" "allow_ses" {

@@ -45,6 +45,20 @@ data "aws_iam_policy_document" "email_processor" {
     actions   = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.inbound.arn}/processed/*"]
   }
+
+  statement {
+    sid     = "AllowSESPuts"
+    effect  = "Allow"
+    principals { type = "Service" identifiers = ["ses.amazonaws.com"] }
+    actions = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/inbound/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:Referer"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
 }
 
 resource "aws_iam_policy" "email_processor" {

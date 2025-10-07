@@ -13,13 +13,18 @@ requires-python = ">=3.11"
 test = [
   "pytest",
   "pytest-cov", "pytest-xdist", "pytest-asyncio", "pytest-randomly",
-#  "moto[s3.tf,sqs,lambda,stepfunctions]",
+  "moto[boto3]",
+  "freezegun"
 #  "localstack-client",
-  "boto3-stubs[s3,sqs,lambda,sts,stepfunctions]",
+#  "boto3-stubs[s3,sqs,lambda,sts,stepfunctions]",
 #  "ruff",
 #  "mypy",
 #  "types-requests",
 ]
+
+[tool.setuptools.package-dir]
+"init_ledger" = "services/init_ledger/src/init_ledger"
+"name" = "services/init_ledger/src/init_ledger"
 
 [tool.setuptools.packages.find]
 include = ["libs.*", "services.*"]
