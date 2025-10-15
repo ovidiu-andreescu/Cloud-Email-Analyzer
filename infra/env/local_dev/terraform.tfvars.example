@@ -1,0 +1,10 @@
+project     = "cloud-email-analyzer"
+env         = "local-dev"
+region      = "eu-central-1"
+domain_name = ""   # keep SES off locally
+
+# init_ledger_zip         = "artifacts/init_ledger.zip"
+# parse_email_zip         = "artifacts/parse_email.zip"
+# extract_attachments_zip = "artifacts/extract_attachments.zip"
+
+tags        = { Owner = "ovidiu" }
