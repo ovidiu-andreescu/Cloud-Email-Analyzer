@@ -1,9 +1,10 @@
 import os
 
 from services_common.mail_helper import mail_extract
-from services_common.s3_ops import s3_write
+from services_common.aws_helper import s3_write
 
-OUT_PREFIX = os.environ.get("OUT_PREFIX", "parsed/")
+def out_prefix():
+    return os.environ.get("OUT_PREFIX", "parsed/")
 
 def handler(event, context):
     message_id, msg, bucket, key = mail_extract(event)
@@ -42,7 +43,7 @@ def handler(event, context):
         "textPreview": (text_body or "")[:1000]
     }
 
-    out_key = f"{OUT_PREFIX}{message_id}.json"
+    out_key = f"{out_prefix()}{message_id}.json"
     s3_write(bucket, out_key, {
         "headers": headers,
         "summary": summary

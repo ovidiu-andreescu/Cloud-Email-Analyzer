@@ -1,7 +1,3 @@
-locals {
-  enable_ses = var.env != "local-dev" && var.domain_name != ""
-}
-
 data "aws_route53_zone" "this" {
   count = local.enable_ses ? 1 : 0
   name         = var.domain_name
@@ -66,17 +62,8 @@ resource "aws_ses_receipt_rule" "inbound" {
 
   s3_action {
     bucket_name = aws_s3_bucket.inbound.bucket
-    object_key_prefix = "inbound/"
+    object_key_prefix = local.inbound_prefix
     kms_key_arn = var.kms_key_arn
     position = 1
   }
-}
-
-resource "aws_lambda_permission" "allow_ses" {
-  count         = local.enable_ses && contains(keys(var.lambda_defs), "email_processor") ? 1 : 0
-  statement_id  = "AllowExecutionFromSES"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.fn["email_processor"].function_name
-  principal     = "ses.amazonaws.com"
-  source_account = data.aws_caller_identity.current.account_id
 }

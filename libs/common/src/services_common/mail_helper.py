@@ -1,4 +1,4 @@
-from services_common.s3_ops import s3_read, s3
+from services_common.aws_helper import s3_read, s3
 from email import policy
 from email.parser import BytesParser
 

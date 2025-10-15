@@ -1,8 +1,9 @@
 import os, time, boto3
 from botocore.exceptions import ClientError
+from services_common.aws_helper import get_table
 
-DDB   = boto3.resource('dynamodb')
-TABLE = DDB.Table(os.environ['LEDGER_TABLE'])
+table_name = "LEDGER_TABLE"
+TABLE = get_table(table_name)
 
 def handler(event, context):
     key = event["key"]

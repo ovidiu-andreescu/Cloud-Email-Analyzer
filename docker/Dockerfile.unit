@@ -1,13 +1,24 @@
 FROM python:3.11-slim
-
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
+SHELL ["/bin/bash", "-lc"]
 
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+COPY libs libs
+COPY services services
 COPY pyproject.toml .
-RUN pip install -U pip && pip install -e .[test]
+
+RUN set -euo pipefail; \
+    python -m pip install -U pip; \
+    mapfile -t PKG_DIRS < <(find libs services -mindepth 2 -maxdepth 2 -type f -name pyproject.toml -printf '%h\n' | sort); \
+    if ((${#PKG_DIRS[@]})); then \
+        echo "Installing: ${PKG_DIRS[@]}"; \
+        python -m pip install -e "${PKG_DIRS[@]}"; \
+    fi; \
+    python -m pip install -e .[test]
 
 COPY . .
 RUN chmod +x /app/scripts/*.sh

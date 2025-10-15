@@ -22,3 +22,27 @@ resource "aws_ecr_lifecycle_policy" "lambda" {
     }]
   })
 }
+
+# resource "aws_ecr_repository" "init_ledger" {
+#   name                 = "${local.base_prefix}-init-ledger"
+#   image_tag_mutability = "MUTABLE"
+#   image_scanning_configuration {
+#     scan_on_push = true
+#   }
+# }
+#
+# resource "aws_ecr_repository" "parse_email" {
+#   name                 = "${local.base_prefix}-parse-email"
+#   image_tag_mutability = "MUTABLE"
+#   image_scanning_configuration {
+#     scan_on_push = true
+#   }
+# }
+#
+# resource "aws_ecr_repository" "extract_attachments" {
+#   name                 = "${local.base_prefix}-extract-attachments"
+#   image_tag_mutability = "MUTABLE"
+#   image_scanning_configuration {
+#     scan_on_push = true
+#   }
+# }

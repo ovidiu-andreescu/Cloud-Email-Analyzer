@@ -9,6 +9,7 @@ class TestLedgerHandler:
 
     def setup_method(self):
         os.environ['LEDGER_TABLE'] = 'test-ledger-table'
+        os.environ['AWS_DEFAULT_REGION'] = 'eu-central-1'
         self.mock_context = Mock()
 
     def teardown_method(self):

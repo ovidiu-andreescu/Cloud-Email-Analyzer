@@ -6,10 +6,8 @@ COPY libs/common/src /tmp/common/src
 RUN pip install --no-cache-dir /tmp/common && rm -rf /tmp/common
 
 COPY services/parse_email/pyproject.toml ./pyproject.toml
+COPY services/parse_email/src ./src
 
-RUN pip install --no-cache-dir . /tmp/common && \
-    rm -rf /tmp/common
-
-COPY services/parse_email/src .
+RUN pip install --no-cache-dir .
 
 CMD [ "parse_email.main.handler" ]

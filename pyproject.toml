@@ -22,9 +22,5 @@ test = [
 #  "types-requests",
 ]
 
-[tool.setuptools.package-dir]
-"init_ledger" = "services/init_ledger/src/init_ledger"
-"name" = "services/init_ledger/src/init_ledger"
-
 [tool.setuptools.packages.find]
 include = ["libs.*", "services.*"]
