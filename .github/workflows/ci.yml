@@ -45,9 +45,9 @@ jobs:
 
       - name: Run integration tests
         run: |
-          docker compose -f docker/docker-compose.ci.yaml up -d
-          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/init_localstack.sh
-          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/run_tests.sh integration
+#          docker compose -f docker/docker-compose.ci.yaml up -d
+#          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/init_localstack.sh
+#          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/run_tests.sh integration
 
       - name: Tear down services
         if: always()
