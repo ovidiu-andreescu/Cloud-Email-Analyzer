@@ -21,22 +21,40 @@ variable "tags"       {
 }
 
 # Lambda definitions: one object per function
-# Example entry (zip):
-# email_processor = { runtime="python3.11", handler="app.handler", filename="artifacts/email_processor.zip", env_vars={STAGE="dev"}, timeout=60, memory_mb=512 }
-# Or (image): { image_tag="v0.1.0", env_vars={...}, timeout=60, memory_mb=512 }
+# Only image mode supported
 variable "lambda_defs" {
   type = map(object({
-    # Zip mode fields
-    runtime    = optional(string)
-    handler    = optional(string)
-    filename   = optional(string)
-    # Image mode fields
     image_uri  = optional(string)
     image_tag  = optional(string)
-    # Shared
     env_vars   = optional(map(string), {})
     timeout    = optional(number, 30)
     memory_mb  = optional(number, 256)
   }))
   default = {}
+}
+
+variable "kms_key_arn" {
+  description = "The ARN of the KMS key for encrypting resources."
+  type        = string
+  default     = null
+}
+
+variable "init_ledger_image_uri"        {
+  type = string
+  default = ""
+}
+
+variable "parse_email_image_uri"        {
+  type = string
+  default = ""
+}
+
+variable "extract_attachments_image_uri"{
+  type = string
+  default = ""
+}
+
+variable "bucket_name"    {
+  type = string
+  default = null
 }
