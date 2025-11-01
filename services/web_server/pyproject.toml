@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "web_server"
+version = "0.1.0"
+description = "The Web Server that will have the dashboard and display the emails"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi==0.115.5",
+  "mangum==0.17.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
