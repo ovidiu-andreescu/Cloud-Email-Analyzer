@@ -1,0 +1,46 @@
+{
+  "Comment": "Email pipeline: init ledger, parse, then check for attachments.",
+  "StartAt": "InitLedger",
+  "States": {
+    "InitLedger": {
+      "Type": "Task",
+      "Resource": "${init_ledger_lambda_arn}",
+      "ResultPath": "$.ledger_result",
+      "Retry": [{
+        "ErrorEquals": ["States.ALL"],
+        "IntervalSeconds": 2,
+        "BackoffRate": 2.0,
+        "MaxAttempts": 3
+      }],
+      "Next": "ParseEmail"
+    },
+    "ParseEmail": {
+      "Type": "Task",
+      "Resource": "${parse_email_lambda_arn}",
+      "ResultPath": "$.parse_result",
+      "Retry": [{
+        "ErrorEquals": ["States.ALL"],
+        "IntervalSeconds": 2,
+        "BackoffRate": 2.0,
+        "MaxAttempts": 3
+      }],
+      "Next": "HasAttachments"
+    },
+    "HasAttachments": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Comment": "Check if the parser found attachments.",
+          "Variable": "$.parse_result.maybeHasAttachments",
+          "BooleanEquals": true,
+          "Next": "ProcessingComplete"
+        }
+      ],
+      "Default": "ProcessingComplete"
+    },
+    "ProcessingComplete": {
+      "Type": "Succeed"
+    }
+  }
+}
+

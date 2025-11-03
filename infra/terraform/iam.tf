@@ -36,25 +36,114 @@ resource "aws_iam_role_policy_attachment" "logs" {
   policy_arn = aws_iam_policy.logs.arn
 }
 
-data "aws_iam_policy_document" "email_processor" {
+resource "aws_iam_role" "init_ledger" {
+  name               = "${local.base_prefix}-init-ledger-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+  tags               = local.tags
+}
+
+
+data "aws_iam_policy_document" "init_ledger" {
   statement {
-    actions   = ["s3:GetObject", "s3:DeleteObject"]
-    resources = ["${aws_s3_bucket.inbound.arn}/inbound/*"]
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.ledger.arn]
+  }
+
+  statement {
+    actions   = ["dynamodb:PutItem", "dynamodb:DescribeTable"]
+    resources = [aws_dynamodb_table.ledger.arn]
+  }
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"]
+  }
+  statement {
+    actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "init_ledger" {
+  name   = "${local.base_prefix}-init-ledger-policy"
+  policy = data.aws_iam_policy_document.init_ledger.json
+}
+
+resource "aws_iam_role_policy_attachment" "init_ledger" {
+  role       = aws_iam_role.init_ledger.name
+  policy_arn = aws_iam_policy.init_ledger.arn
+}
+
+resource "aws_iam_role" "parse_email" {
+  name               = "${local.base_prefix}-parse-email-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "parse_email" {
+  statement {
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.ledger.arn]
+  }
+
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"]
   }
   statement {
     actions   = ["s3:PutObject"]
-    resources = ["${aws_s3_bucket.inbound.arn}/processed/*"]
+    resources = ["${aws_s3_bucket.inbound.arn}/${local.parsed_prefix}*"]
+  }
+
+    statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/${local.attach_prefix}*"]
+  }
+
+  statement {
+    actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
+    resources = ["*"]
   }
 }
 
-resource "aws_iam_policy" "email_processor" {
-  count  = contains(keys(var.lambda_defs), "email_processor") ? 1 : 0
-  name   = "${local.base_prefix}-email-processor"
-  policy = data.aws_iam_policy_document.email_processor.json
+resource "aws_iam_policy" "parse_email" {
+  name   = "${local.base_prefix}-parse-email-policy"
+  policy = data.aws_iam_policy_document.parse_email.json
 }
 
-resource "aws_iam_role_policy_attachment" "email_processor" {
-  count      = contains(keys(var.lambda_defs), "email_processor") ? 1 : 0
-  role       = aws_iam_role.lambda["email_processor"].name
-  policy_arn = aws_iam_policy.email_processor[0].arn
+resource "aws_iam_role_policy_attachment" "parse_email" {
+  role       = aws_iam_role.parse_email.name
+  policy_arn = aws_iam_policy.parse_email.arn
+}
+
+resource "aws_iam_role" "eventbridge_sfn_role" {
+  name = "${var.project}-eventbridge-sfn-role"
+  tags = local.tags
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "events.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+data "aws_iam_policy_document" "allow_start_execution" {
+  statement {
+    sid       = "AllowStartExecution"
+    effect    = "Allow"
+    actions   = ["states:StartExecution"]
+    resources = [aws_sfn_state_machine.email_pipeline.arn]
+  }
+}
+
+resource "aws_iam_policy" "eventbridge_start_sfn_policy" {
+  name   = "${var.project}-start-sfn-policy"
+  policy = data.aws_iam_policy_document.allow_start_execution.json
+}
+
+resource "aws_iam_role_policy_attachment" "attach_eventbridge_start_sfn" {
+  role       = aws_iam_role.eventbridge_sfn_role.name
+  policy_arn = aws_iam_policy.eventbridge_start_sfn_policy.arn
 }

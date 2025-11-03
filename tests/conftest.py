@@ -1,5 +1,10 @@
 import os, pytest
 
+os.environ["AWS_DEFAULT_REGION"] = "eu-central-1"
+os.environ["LEDGER_TABLE"] = "test-ledger-table"
+os.environ["AWS_ACCESS_KEY_ID"] = "test"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "test"
+
 def pytest_addoption(parser):
     parser.addoption("--runslow", action="store_true", help="run slow tests")
 

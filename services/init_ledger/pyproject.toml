@@ -3,13 +3,11 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "email-normalizer"
+name = "init-ledger"
 version = "0.1.0"
-requires-python = ">=3.11"
+description = "Idempotency initializer for email pipeline"
+requires-python = ">=3.10"
 dependencies = []
-
-[project.optional-dependencies]
-dev = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
