@@ -1,14 +1,11 @@
-variable "enable_sfn" {
-  type    = bool
-  default = false
-}
-
+# enable_sfn var unchanged
+# Use the global Step Functions principal
 data "aws_iam_policy_document" "sfn_assume" {
   statement {
     effect = "Allow"
     principals {
       type        = "Service"
-      identifiers = ["states.${var.region}.amazonaws.com", "states.amazonaws.com"]
+      identifiers = ["states.amazonaws.com"]
     }
     actions = ["sts:AssumeRole"]
   }
@@ -22,11 +19,11 @@ resource "aws_iam_role" "sfn_role" {
 
 data "aws_iam_policy_document" "sfn_policy" {
   statement {
+    effect    = "Allow"
     actions   = ["lambda:InvokeFunction"]
     resources = [
       aws_lambda_function.init_ledger.arn,
       aws_lambda_function.parse_email.arn,
-      aws_lambda_function.extract_attachments.arn,
     ]
   }
 }
@@ -41,36 +38,39 @@ resource "aws_iam_role_policy_attachment" "sfn_attach" {
   policy_arn = aws_iam_policy.sfn_policy.arn
 }
 
-locals {
-  sfn_def = jsonencode({
-    Comment = "Email pipeline: ledger -> parse -> extract"
-    StartAt = "InitLedger"
-    States = {
-      InitLedger = {
-        Type = "Task"
-        Resource = aws_lambda_function.init_ledger.arn
-        Retry = [{ ErrorEquals = ["States.ALL"], IntervalSeconds = 2, BackoffRate = 2.0, MaxAttempts = 3 }]
-        Next = "ParseEmail"
-      }
-      ParseEmail = {
-        Type = "Task"
-        Resource = aws_lambda_function.parse_email.arn
-        Retry = [{ ErrorEquals = ["States.ALL"], IntervalSeconds = 2, BackoffRate = 2.0, MaxAttempts = 3 }]
-        Next = "ExtractAttachments"
-      }
-      ExtractAttachments = {
-        Type = "Task"
-        Resource = aws_lambda_function.extract_attachments.arn
-        Retry = [{ ErrorEquals = ["States.ALL"], IntervalSeconds = 2, BackoffRate = 2.0, MaxAttempts = 3 }]
-        End = true
-      }
-    }
+resource "aws_sfn_state_machine" "email_pipeline" {
+  name     = "${local.base_prefix}-email-pipeline"
+  role_arn = aws_iam_role.sfn_role.arn
+  tags     = local.tags
+
+  definition = templatefile("email_pipeline.asl.json", {
+    init_ledger_lambda_arn         = aws_lambda_function.init_ledger.arn
+    parse_email_lambda_arn         = aws_lambda_function.parse_email.arn
   })
+
+  depends_on = [
+    aws_iam_role_policy_attachment.sfn_attach
+  ]
 }
 
-resource "aws_sfn_state_machine" "email_pipeline" {
-  name        = "${local.base_prefix}-email-pipeline"
-  role_arn    = aws_iam_role.sfn_role.arn
-  definition  = local.sfn_def
-  tags        = local.tags
+resource "aws_s3_bucket_notification" "send_to_eventbridge" {
+  bucket = aws_s3_bucket.inbound.id
+  eventbridge = true
+}
+
+data "aws_iam_policy_document" "eventbridge_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_target" "start_sfn_pipeline_target" {
+  rule      = aws_cloudwatch_event_rule.s3_new_email.name
+  target_id = "StartEmailPipelineSFN"
+  arn       = aws_sfn_state_machine.email_pipeline.arn
+  role_arn  = aws_iam_role.eventbridge_sfn_role.arn
 }
