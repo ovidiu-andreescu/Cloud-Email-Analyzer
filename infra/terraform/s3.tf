@@ -3,23 +3,52 @@ resource "aws_s3_bucket" "inbound" {
   tags   = local.tags
 }
 
-resource "aws_s3_bucket_policy" "ses_put" {
-  bucket = aws_s3_bucket.inbound.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid       = "AllowSESPuts"
-      Effect    = "Allow"
-      Principal = { Service = "ses.amazonaws.com" }
-      Action    = ["s3:PutObject"]
-      Resource  = "${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"
-      Condition = {
-        StringEquals = {
-          "aws:Referer" = data.aws_caller_identity.current.id
-        }
+data "aws_iam_policy_document" "all_bucket_policy" {
+  version = "2012-10-17"
+
+  statement {
+      sid       = "AllowSESPuts"
+      effect    = "Allow"
+      principals {
+        type        = "Service"
+        identifiers = ["ses.amazonaws.com"]
       }
-    }]
-  })
+      actions   = ["s3:PutObject"]
+      resources = ["${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"]
+
+      condition {
+        test     = "StringEquals"
+        variable = "aws:SourceAccount"
+        values   = [data.aws_caller_identity.current.account_id]
+      }
+  }
+
+  statement {
+    sid    = "StatementFromInboundPolicy"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${var.aws_account_id}:root"]
+    }
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/*"]
+  }
+
+  statement {
+    sid    = "StatementFromSfnStart"
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.sfn_role.arn]
+    }
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/*"]
+  }
+}
+
+resource "aws_s3_bucket_policy" "bucket_policy" {
+  bucket = aws_s3_bucket.inbound.id
+  policy = data.aws_iam_policy_document.all_bucket_policy.json
 }
 
 resource "aws_s3_bucket_versioning" "inbound" {
@@ -45,25 +74,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "inbound" {
   }
 }
 
-resource "aws_s3_bucket_notification" "inbound" {
-  bucket = aws_s3_bucket.inbound.id
+resource "aws_cloudwatch_event_rule" "s3_new_email" {
+  name        = "${local.base_prefix}-s3-new-email-rule"
+  description = "Trigger SFN when a new email arrives in the inbound bucket"
 
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.parse_email.arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = local.inbound_prefix
-    filter_suffix       = ".eml"
-  }
-
-  depends_on = [
-    aws_lambda_permission.s3_invoke_parse
-  ]
-}
-
-resource "aws_lambda_permission" "s3_invoke_parse" {
-  statement_id  = "AllowS3InvokeParse"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.parse_email.function_name
-  principal     = "s3.amazonaws.com"
-  source_arn    = aws_s3_bucket.inbound.arn
+  event_pattern = jsonencode({
+    "source" : ["aws.s3"],
+    "detail-type" : ["Object Created"],
+    "detail" : {
+      "bucket" : {
+        "name" : [aws_s3_bucket.inbound.id]
+      },
+      "object" : {
+        "key" : [{ "prefix" : local.inbound_prefix }]
+      }
+    }
+  })
 }

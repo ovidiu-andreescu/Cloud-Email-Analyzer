@@ -31,6 +31,7 @@ resource "aws_lambda_function" "parse_email" {
   environment {
     variables = {
       OUT_PREFIX = local.parsed_prefix
+      ATTACH_PREFIX = local.attach_prefix
       STAGE      = var.env
     }
   }
@@ -38,19 +39,20 @@ resource "aws_lambda_function" "parse_email" {
   tags = local.tags
 }
 
-resource "aws_lambda_function" "extract_attachments" {
-  function_name = "${local.base_prefix}-extract-attachments"
-  role          = aws_iam_role.extract_attachments.arn
-  package_type  = "Image"
-  image_uri     = var.extract_attachments_image_uri
-  timeout       = 300
-  memory_size   = 1024
-  environment {
-    variables = {
-      ATTACH_PREFIX = local.attach_prefix
-      STAGE         = var.env
-    }
-  }
-  depends_on = [aws_cloudwatch_log_group.lambda]
-  tags = local.tags
+resource "aws_lambda_permission" "allow_sfn_init_ledger" {
+  statement_id  = "AllowExecutionFromStepFunctions"
+  action        = "lambda:InvokeFunction"
+  principal     = "states.amazonaws.com"
+  function_name = aws_lambda_function.init_ledger.function_name
+  # optional: qualify with source-arn to limit to this state machine once it exists
+  # source_arn = aws_sfn_state_machine.email_pipeline[0].arn
+}
+
+resource "aws_lambda_permission" "allow_sfn_parse_email" {
+  statement_id  = "AllowExecutionFromStepFunctions"
+  action        = "lambda:InvokeFunction"
+  principal     = "states.amazonaws.com"
+  function_name = aws_lambda_function.parse_email.function_name
+  # optional: qualify with source-arn to limit to this state machine once it exists
+  # source_arn = aws_sfn_state_machine.email_pipeline[0].arn
 }

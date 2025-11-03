@@ -58,3 +58,8 @@ variable "bucket_name"    {
   type = string
   default = null
 }
+
+variable "aws_account_id" {
+  type = string
+  default = ""
+}
