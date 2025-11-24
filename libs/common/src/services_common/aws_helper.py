@@ -31,17 +31,35 @@ def get_table(table_env_name: str):
     return get_ddb().Table(table_name)
 
 def s3_read(bucket, key):
-    obj = get_s3().get_object(
+    s3 = get_s3()
+    if not s3:
+        raise Exception("S3 client not initialized.")
+    obj = s3.get_object(
         Bucket = bucket,
         Key = key
     )
-
     return obj["Body"].read()
 
 def s3_write(bucket, key, data, metadata = None):
-    get_s3().put_object(
+    s3 = get_s3()
+    if not s3:
+        raise Exception("S3 client not initialized.")
+    s3.put_object(
         Bucket = bucket,
         Key = key,
         Body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
+        ContentType = "application/json",
+        Metadata = metadata or {}
+    )
+
+def s3_write_bytes(bucket, key, data, content_type=None, metadata=None):
+    s3 = get_s3()
+    if not s3:
+        raise Exception("S3 client not initialized.")
+    s3.put_object(
+        Bucket = bucket,
+        Key = key,
+        Body = data,
+        ContentType = content_type or "application/octet-stream",
         Metadata = metadata or {}
     )

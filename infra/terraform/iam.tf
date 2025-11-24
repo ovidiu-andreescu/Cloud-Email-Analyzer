@@ -45,6 +45,11 @@ resource "aws_iam_role" "init_ledger" {
 
 data "aws_iam_policy_document" "init_ledger" {
   statement {
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.ledger.arn]
+  }
+
+  statement {
     actions   = ["dynamodb:PutItem", "dynamodb:DescribeTable"]
     resources = [aws_dynamodb_table.ledger.arn]
   }
@@ -76,6 +81,11 @@ resource "aws_iam_role" "parse_email" {
 
 data "aws_iam_policy_document" "parse_email" {
   statement {
+    actions   = ["dynamodb:UpdateItem"]
+    resources = [aws_dynamodb_table.ledger.arn]
+  }
+
+  statement {
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"]
   }
@@ -83,6 +93,12 @@ data "aws_iam_policy_document" "parse_email" {
     actions   = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.inbound.arn}/${local.parsed_prefix}*"]
   }
+
+    statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.inbound.arn}/${local.attach_prefix}*"]
+  }
+
   statement {
     actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
     resources = ["*"]
@@ -99,33 +115,79 @@ resource "aws_iam_role_policy_attachment" "parse_email" {
   policy_arn = aws_iam_policy.parse_email.arn
 }
 
-resource "aws_iam_role" "extract_attachments" {
-  name               = "${local.base_prefix}-extract-attachments-role"
+resource "aws_iam_role" "eventbridge_sfn_role" {
+  name = "${var.project}-eventbridge-sfn-role"
+  tags = local.tags
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "events.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+data "aws_iam_policy_document" "allow_start_execution" {
+  statement {
+    sid       = "AllowStartExecution"
+    effect    = "Allow"
+    actions   = ["states:StartExecution"]
+    resources = [aws_sfn_state_machine.email_pipeline.arn]
+  }
+}
+
+resource "aws_iam_policy" "eventbridge_start_sfn_policy" {
+  name   = "${var.project}-start-sfn-policy"
+  policy = data.aws_iam_policy_document.allow_start_execution.json
+}
+
+resource "aws_iam_role_policy_attachment" "attach_eventbridge_start_sfn" {
+  role       = aws_iam_role.eventbridge_sfn_role.name
+  policy_arn = aws_iam_policy.eventbridge_start_sfn_policy.arn
+}
+
+data "aws_iam_policy_document" "api_lambda_policy" {
+  statement {
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+
+  statement {
+    actions = ["dynamodb:DescribeTable"]
+    resources = [
+      aws_dynamodb_table.ledger.arn,
+      aws_dynamodb_table.user.arn
+    ]
+  }
+
+  statement {
+    actions = ["dynamodb:Scan"]
+    resources = [
+      aws_dynamodb_table.ledger.arn,
+      aws_dynamodb_table.user.arn
+    ]
+  }
+
+  statement {
+    actions = ["dynamodb:Query"]
+    resources = [
+      aws_dynamodb_table.user.arn, # Not strictly needed, but good practice
+      "${aws_dynamodb_table.user.arn}/index/by-activity-gsi"
+    ]
+  }
+}
+
+
+resource "aws_iam_role" "api_lambda_role" {
+  name               = "api-role"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-  tags               = local.tags
 }
 
-data "aws_iam_policy_document" "extract_attachments" {
-  statement {
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"]
-  }
-  statement {
-    actions   = ["s3:PutObject"]
-    resources = ["${aws_s3_bucket.inbound.arn}/${local.attach_prefix}*"]
-  }
-  statement {
-    actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
-    resources = ["*"]
-  }
-}
 
-resource "aws_iam_policy" "extract_attachments" {
-  name   = "${local.base_prefix}-extract-attachments-policy"
-  policy = data.aws_iam_policy_document.extract_attachments.json
-}
-
-resource "aws_iam_role_policy_attachment" "extract_attachments" {
-  role       = aws_iam_role.extract_attachments.name
-  policy_arn = aws_iam_policy.extract_attachments.arn
+resource "aws_iam_role_policy" "api_lambda_policy" {
+  name   = "api-lambda-policy"
+  role   = aws_iam_role.api_lambda_role.id
+  policy = data.aws_iam_policy_document.api_lambda_policy.json
 }

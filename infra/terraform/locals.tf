@@ -9,6 +9,10 @@ locals {
   parsed_prefix  = "parsed/"
   attach_prefix  = "attachments/"
 
+  account_id = data.aws_caller_identity.current.account_id
+
+  api_gateway_name = "http-api"
+
   tags = {
     Project = var.project
     Env     = var.env

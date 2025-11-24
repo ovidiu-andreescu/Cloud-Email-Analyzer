@@ -3,11 +3,16 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "extract-attachments"
+name = "web_server"
 version = "0.1.0"
-description = "Idempotency initializer for email pipeline"
+description = "The Web Server that will have the dashboard and display the emails"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+  "fastapi==0.115.5",
+  "mangum==0.17.0",
+  "boto3",
+  "botocore",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
