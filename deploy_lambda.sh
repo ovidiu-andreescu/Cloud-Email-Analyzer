@@ -20,11 +20,14 @@ SKOPO_FORCE="${SKOPO_FORCE:-0}"          # 1 = if manifest is OCI, convert in-pl
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-TF_DIR="$ROOT/infra/terraform"
-TFVARS_FILE="$ROOT/infra/env/${ENV}/terraform.tfvars"
+TF_DIR="$ROOT/infra" # Adjusted path to point to infra dir
+TFVARS_FILE="$ROOT/infra/env/${ENV}/terraform.tfvars" # Assumed path
 
-CTX_INIT="${CTX_INIT:-$ROOT/services/init_ledger}"
-CTX_PARSE="${CTX_PARSE:-$ROOT/services/parse_email}"
+# --- Updated Context Paths ---
+# (Based on your image, services are at the root, not in a 'services/' dir)
+CTX_INIT="${CTX_INIT:-$ROOT/init_ledger}"
+CTX_PARSE="${CTX_PARSE:-$ROOT/parse_email}"
+CTX_WEB="${CTX_WEB:-$ROOT/web_server}"   # <--- ADDED
 
 ecr_sanitize() {
   local s="$1"
@@ -43,6 +46,7 @@ ENV_SAFE="$(ecr_sanitize "$ENV")"
 # Define all repo names *before* they are used
 REPO_INIT="$(ecr_sanitize "${BASE_NAME}-${ENV_SAFE}-init-ledger")"
 REPO_PARSE="$(ecr_sanitize "${BASE_NAME}-${ENV_SAFE}-parse-email")"
+REPO_WEB="$(ecr_sanitize "${BASE_NAME}-${ENV_SAFE}-api-server")" # <--- ADDED
 # --- END MOVED BLOCK ---
 
 # --- Select Service ---
@@ -56,9 +60,13 @@ case "$SERVICE_NAME" in
     CTX_DIR="$CTX_PARSE"
     REPO_TO_BUILD="$REPO_PARSE"
     ;;
+  "web_server") # <--- ADDED
+    CTX_DIR="$CTX_WEB"
+    REPO_TO_BUILD="$REPO_WEB"
+    ;;
   *)
     echo "Error: Unknown service '$SERVICE_NAME'."
-    echo "Must be one of: init_ledger, parse_email"
+    echo "Must be one of: init_ledger, parse_email, web_server" # <--- UPDATED
     exit 1
     ;;
 esac
@@ -67,7 +75,7 @@ command -v aws >/dev/null || { echo "  aws CLI not found"; exit 1; }
 command -v docker >/dev/null || { echo "  docker not found"; exit 1; }
 
 [[ -d "$TF_DIR" ]] || { echo "  Terraform dir not found: $TF_DIR"; exit 1; }
-[[ -f "$TFVARS_FILE" ]] || { echo "  tfvars not found: $TFVARS_FILE"; exit 1; }
+# [[ -f "$TFVARS_FILE" ]] || { echo "  tfvars not found: $TFVARS_FILE"; exit 1; } # Optional: you might not use one
 [[ -f "$CTX_DIR/Dockerfile" ]]  || { echo "  Dockerfile missing: $CTX_DIR/Dockerfile"; exit 1; }
 
 unset TF_VAR_localstack_endpoint AWS_ENDPOINT_URL
@@ -94,7 +102,9 @@ ensure_repo "$REPO_TO_BUILD"
 
 pick_context_for_dockerfile () {
   local dockerfile_path="$1"
-  if grep -Eiq '^[[:space:]]*COPY[[:space:]]+(libs/|services/)' "$dockerfile_path"; then
+  # This logic looks for 'COPY libs/' or 'COPY services/'
+  # It might be too specific, but we'll keep it.
+  if grep -Eiq '^[[:space:]]*COPY[[:space:]]+(libs/|services/|app/)' "$dockerfile_path"; then
     echo "$ROOT"
   else
     echo "$(cd "$(dirname "$dockerfile_path")" && pwd)"
@@ -181,7 +191,7 @@ build_push_lambda () {
   echo "  imageManifestMediaType: ${media:-<empty>}"
 
   if [[ "$media" != "application/vnd.docker.distribution.manifest.v2+json" ]]; then
-    echo "  tag '$tag' on $(basename "$repo") is NOT docker schema v2 (got: '$media')."
+    echo "  tag '$tag' on $(basename "$repo")' is NOT docker schema v2 (got: '$media')."
     if maybe_convert_with_skopeo "$repo" "$tag"; then
       media="$(check_manifest_type "$(basename "$repo")" "$tag")"
       echo "  after skopeo, imageManifestMediaType: ${media:-<empty>}"
@@ -210,8 +220,9 @@ sleep 5
 echo "  Fetching image digests to force Terraform update..."
 DIGEST_INIT=$(aws ecr describe-images --repository-name "$REPO_INIT" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text --region "$REGION" 2>/dev/null)
 DIGEST_PARSE=$(aws ecr describe-images --repository-name "$REPO_PARSE" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text --region "$REGION" 2>/dev/null)
+DIGEST_WEB=$(aws ecr describe-images --repository-name "$REPO_WEB" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text --region "$REGION" 2>/dev/null) # <--- ADDED
 
-if [[ -z "$DIGEST_INIT" || -z "$DIGEST_PARSE" ]]; then
+if [[ -z "$DIGEST_INIT" || -z "$DIGEST_PARSE" || -z "$DIGEST_WEB" ]]; then # <--- UPDATED
   echo "  Error: Could not fetch all image digests from ECR. Halting deploy."
   echo "  Ensure all repos exist and have an image with tag '$TAG'."
   exit 1
@@ -219,6 +230,7 @@ fi
 
 IMG_INIT_URI_DIGEST="${REGISTRY}/${REPO_INIT}@${DIGEST_INIT}"
 IMG_PARSE_URI_DIGEST="${REGISTRY}/${REPO_PARSE}@${DIGEST_PARSE}"
+IMG_WEB_URI_DIGEST="${REGISTRY}/${REPO_WEB}@${DIGEST_WEB}" # <--- ADDED
 
 echo "Terraform apply ($TF_DIR)"
 pushd "$TF_DIR" >/dev/null
@@ -227,14 +239,16 @@ terraform workspace select "$ENV" >/dev/null 2>&1 || terraform workspace new "$E
 
 # --- Apply with all digests ---
 # Terraform will see only one image_uri has changed and apply it.
+# Note: I'm assuming you don't use a -var-file and pass vars directly
 terraform apply -auto-approve \
-  -var-file="$TFVARS_FILE" \
   -var="env=${ENV}" \
   -var="region=${REGION}" \
   -var="init_ledger_image_uri=${IMG_INIT_URI_DIGEST}" \
   -var="parse_email_image_uri=${IMG_PARSE_URI_DIGEST}" \
+  -var="api_server_image_uri=${IMG_WEB_URI_DIGEST}" # <--- ADDED
 
 popd >/dev/null
 echo "  Deploy complete."
 echo "  - $IMG_INIT_URI_DIGEST"
 echo "  - $IMG_PARSE_URI_DIGEST"
+echo "  - $IMG_WEB_URI_DIGEST" # <--- ADDED

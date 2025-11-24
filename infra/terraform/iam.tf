@@ -147,3 +147,47 @@ resource "aws_iam_role_policy_attachment" "attach_eventbridge_start_sfn" {
   role       = aws_iam_role.eventbridge_sfn_role.name
   policy_arn = aws_iam_policy.eventbridge_start_sfn_policy.arn
 }
+
+data "aws_iam_policy_document" "api_lambda_policy" {
+  statement {
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+
+  statement {
+    actions = ["dynamodb:DescribeTable"]
+    resources = [
+      aws_dynamodb_table.ledger.arn,
+      aws_dynamodb_table.user.arn
+    ]
+  }
+
+  statement {
+    actions = ["dynamodb:Scan"]
+    resources = [
+      aws_dynamodb_table.ledger.arn,
+      aws_dynamodb_table.user.arn
+    ]
+  }
+
+  statement {
+    actions = ["dynamodb:Query"]
+    resources = [
+      aws_dynamodb_table.user.arn, # Not strictly needed, but good practice
+      "${aws_dynamodb_table.user.arn}/index/by-activity-gsi"
+    ]
+  }
+}
+
+
+resource "aws_iam_role" "api_lambda_role" {
+  name               = "api-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+}
+
+
+resource "aws_iam_role_policy" "api_lambda_policy" {
+  name   = "api-lambda-policy"
+  role   = aws_iam_role.api_lambda_role.id
+  policy = data.aws_iam_policy_document.api_lambda_policy.json
+}
