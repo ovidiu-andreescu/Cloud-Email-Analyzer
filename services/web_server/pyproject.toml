@@ -9,7 +9,9 @@ description = "The Web Server that will have the dashboard and display the email
 requires-python = ">=3.10"
 dependencies = [
   "fastapi==0.115.5",
-  "mangum==0.17.0"
+  "mangum==0.17.0",
+  "boto3",
+  "botocore",
 ]
 
 [tool.setuptools.packages.find]

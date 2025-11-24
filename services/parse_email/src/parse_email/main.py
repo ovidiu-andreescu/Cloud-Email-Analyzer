@@ -5,9 +5,9 @@ from urllib.parse import quote
 from email.message import EmailMessage
 
 from services_common.mail_helper import mail_extract
-from services_common.aws_helper import s3_write
-from services_common.aws_helper import s3_write_bytes
+from services_common.aws_helper import s3_write , s3_write_bytes, get_table
 
+TABLE = get_table("LEDGER_TABLE")
 
 def out_prefix():
     return os.environ.get("OUT_PREFIX", "parsed/")
@@ -18,6 +18,9 @@ def get_att():
 
 
 def handler(event, context):
+    if TABLE is None:
+        raise Exception("Failed to initialize DynamoDB table. Check LEDGER_TABLE env var.")
+
     result = mail_extract(event)
     message_id = result["messageId"]
     msg = result["msg"]
@@ -90,11 +93,34 @@ def handler(event, context):
         "summary": summary
     }, metadata={"messageId": message_id})
 
+    has_attachments = len(saved_attachments) > 0
+
+    try:
+        TABLE.update_item(
+            Key={
+                "messageId": message_id
+            },
+            UpdateExpression="SET subject = :sub, sender = :frm, recipient = :recip, "
+                             "hasAttachments = :ha, s3KeyParsed = :skp, "
+                             "verdict = :v",
+            ConditionExpression="sk = :sk_meta",
+            ExpressionAttributeValues={
+                ":sub": subject,
+                ":frm": from_,
+                ":recip": to,
+                ":ha": has_attachments,
+                ":skp": out_key,
+                ":v": "PROCESSED",
+                ":sk_meta": "meta"
+            }
+        )
+    except Exception as e:
+        print(f"WARNING: Failed to update DynamoDB 'meta' item for {message_id}. {e}")
+
     event.setdefault("artifacts", {})
     event["artifacts"]["parsed"] = {"bucket": bucket, "key": out_key}
     event["artifacts"]["attachments"] = saved_attachments
     event["mail"] = {"subject": subject, "from": from_, "to": to}
-
-    event["maybeHasAttachments"] = len(saved_attachments) > 0
+    event["maybeHasAttachments"] = has_attachments
 
     return event

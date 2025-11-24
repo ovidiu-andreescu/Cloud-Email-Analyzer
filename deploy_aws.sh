@@ -16,6 +16,7 @@ TFVARS_FILE="$ROOT/infra/env/${ENV}/terraform.tfvars"
 
 CTX_INIT="${CTX_INIT:-$ROOT/services/init_ledger}"
 CTX_PARSE="${CTX_PARSE:-$ROOT/services/parse_email}"
+CTX_WEB="${CTX_WEB:-$ROOT/services/web_server}"
 
 ecr_sanitize() {
   local s="$1"
@@ -32,6 +33,7 @@ ENV_SAFE="$(ecr_sanitize "$ENV")"
 
 REPO_INIT="$(ecr_sanitize "${BASE_NAME}-${ENV_SAFE}-init-ledger")"
 REPO_PARSE="$(ecr_sanitize "${BASE_NAME}-${ENV_SAFE}-parse-email")"
+REPO_WEB="$(ecr_sanitize "${BASE_NAME}-${ENV_SAFE}-web-server")"
 
 command -v aws >/dev/null || { echo "  aws CLI not found"; exit 1; }
 command -v docker >/dev/null || { echo "  docker not found"; exit 1; }
@@ -41,6 +43,7 @@ command -v docker >/dev/null || { echo "  docker not found"; exit 1; }
 
 [[ -f "$CTX_INIT/Dockerfile" ]]  || { echo "  Dockerfile missing: $CTX_INIT/Dockerfile"; exit 1; }
 [[ -f "$CTX_PARSE/Dockerfile" ]] || { echo "  Dockerfile missing: $CTX_PARSE/Dockerfile"; exit 1; }
+[[ -f "$CTX_WEB/Dockerfile" ]] || { echo "  Dockerfile missing: $CTX_WEB/Dockerfile"; exit 1; }
 
 unset TF_VAR_localstack_endpoint AWS_ENDPOINT_URL
 
@@ -53,6 +56,7 @@ REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 echo "ECR repos:"
 echo "  INIT : ${REPO_INIT}"
 echo "  PARSE: ${REPO_PARSE}"
+echo "  PARSE: ${REPO_WEB}"
 
 echo "  Logging into ECR..."
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY"
@@ -64,6 +68,7 @@ ensure_repo () {
 }
 ensure_repo "$REPO_INIT"
 ensure_repo "$REPO_PARSE"
+ensure_repo "$REPO_WEB"
 
 pick_context_for_dockerfile () {
   local dockerfile_path="$1"
@@ -174,6 +179,7 @@ build_push_lambda () {
 
 build_push_lambda "$CTX_INIT"  "$REGISTRY/$REPO_INIT"  "$TAG" "init_ledger"
 build_push_lambda "$CTX_PARSE" "$REGISTRY/$REPO_PARSE" "$TAG" "parse_email"
+build_push_lambda "$CTX_WEB" "$REGISTRY/$REPO_WEB" "$TAG" "web_api"
 
 echo "  Waiting a moment for ECR indexing..."
 sleep 5
@@ -181,6 +187,7 @@ sleep 5
 echo "  Fetching image digests to force Terraform update..."
 DIGEST_INIT=$(aws ecr describe-images --repository-name "$REPO_INIT" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text --region "$REGION" 2>/dev/null)
 DIGEST_PARSE=$(aws ecr describe-images --repository-name "$REPO_PARSE" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text --region "$REGION" 2>/dev/null)
+DIGEST_WEB=$(aws ecr describe-images --repository-name "$REPO_WEB" --image-ids imageTag="$TAG" --query 'imageDetails[0].imageDigest' --output text --region "$REGION" 2>/dev/null)
 
 if [[ -z "$DIGEST_INIT" || -z "$DIGEST_PARSE" ]]; then
   echo "  Error: Could not fetch image digests from ECR. Halting deploy."
@@ -189,6 +196,7 @@ fi
 
 IMG_INIT_URI_DIGEST="${REGISTRY}/${REPO_INIT}@${DIGEST_INIT}"
 IMG_PARSE_URI_DIGEST="${REGISTRY}/${REPO_PARSE}@${DIGEST_PARSE}"
+IMG_WEB_URI_DIGEST="${REGISTRY}/${REPO_WEB}@${DIGEST_WEB}"
 
 echo "Terraform apply ($TF_DIR)"
 pushd "$TF_DIR" >/dev/null
@@ -201,8 +209,11 @@ terraform apply -auto-approve \
   -var="region=${REGION}" \
   -var="init_ledger_image_uri=${IMG_INIT_URI_DIGEST}" \
   -var="parse_email_image_uri=${IMG_PARSE_URI_DIGEST}" \
+  -var="web_server_image_uri=${IMG_WEB_URI_DIGEST}" \
+
 
 popd >/dev/null
 echo "  Deploy complete."
 echo "  - $IMG_INIT_URI_DIGEST"
 echo "  - $IMG_PARSE_URI_DIGEST"
+echo "  - $IMG_WEB_URI_DIGEST"

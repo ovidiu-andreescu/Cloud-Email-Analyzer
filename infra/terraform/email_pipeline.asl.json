@@ -1,29 +1,37 @@
 {
-  "Comment": "Email pipeline: init ledger, parse, then check for attachments.",
+  "Comment": "Email pipeline: init ledger, parse, check for attachments, then scan.",
   "StartAt": "InitLedger",
   "States": {
     "InitLedger": {
       "Type": "Task",
       "Resource": "${init_ledger_lambda_arn}",
       "ResultPath": "$.ledger_result",
-      "Retry": [{
-        "ErrorEquals": ["States.ALL"],
-        "IntervalSeconds": 2,
-        "BackoffRate": 2.0,
-        "MaxAttempts": 3
-      }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
+        }
+      ],
       "Next": "ParseEmail"
     },
     "ParseEmail": {
       "Type": "Task",
       "Resource": "${parse_email_lambda_arn}",
       "ResultPath": "$.parse_result",
-      "Retry": [{
-        "ErrorEquals": ["States.ALL"],
-        "IntervalSeconds": 2,
-        "BackoffRate": 2.0,
-        "MaxAttempts": 3
-      }],
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
+        }
+      ],
       "Next": "HasAttachments"
     },
     "HasAttachments": {
@@ -33,14 +41,30 @@
           "Comment": "Check if the parser found attachments.",
           "Variable": "$.parse_result.maybeHasAttachments",
           "BooleanEquals": true,
-          "Next": "ProcessingComplete"
+          "Next": "RunVirusScanner"
         }
       ],
       "Default": "ProcessingComplete"
+    },
+    "RunVirusScanner": {
+      "Comment": "This is the new state for your scanner Lambda.",
+      "Type": "Task",
+      "Resource": "${virus_scan_lambda_arn}",
+      "ResultPath": "$.scanner_result",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
+        }
+      ],
+      "Next": "ProcessingComplete"
     },
     "ProcessingComplete": {
       "Type": "Succeed"
     }
   }
 }
-

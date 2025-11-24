@@ -31,3 +31,16 @@ output "parse_email_name"            {
   value = aws_lambda_function.parse_email.function_name
 }
 
+output "api_endpoint" {
+  description = "The invoke URL for the FastAPI HTTP API."
+  value       = aws_apigatewayv2_stage.default
+}
+
+output "frontend_bucket_name" {
+  value = aws_s3_bucket.frontend.bucket
+}
+
+output "frontend_url" {
+  description = "The URL for the frontend S3 static website."
+  value       = aws_s3_bucket.frontend.website_endpoint
+}
