@@ -6,7 +6,7 @@ from services_common.aws_helper import get_table
 
 table_name = "LEDGER_TABLE"
 TABLE = get_table(table_name)
-
+GSI_PK_VALUE = "EMAILS"
 
 def handler(event, context):
     try:
@@ -23,6 +23,7 @@ def handler(event, context):
     item = {
         "messageId": msg_id,
         "sk": "meta",
+        "gsi_pk": GSI_PK_VALUE,
         "s3KeyRaw": key,
         "receivedAt": now_iso,
         "verdict": "PROCESSING"
@@ -31,10 +32,17 @@ def handler(event, context):
     try:
         TABLE.put_item(
             Item=item,
-            ConditionExpression="attribute_not_exists(messageId)"
+            ConditionExpression="attribute_not_exists(sk)"
         )
 
-        return {"ok": True, "msgId": msg_id, "s3Key": key}
+        event["ledger_result"] = {
+            "ok": True,
+            "msgId": msg_id,
+            "s3Key": key,
+            "bucket": event["detail"]["bucket"]["name"]
+        }
+
+        return event
 
     except ClientError as e:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":

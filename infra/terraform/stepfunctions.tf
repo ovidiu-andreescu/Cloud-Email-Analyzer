@@ -11,6 +11,10 @@ data "aws_iam_policy_document" "sfn_assume" {
   }
 }
 
+data "aws_lambda_function" "virus_scan" {
+  function_name = "virus-scan-clam-av"
+}
+
 resource "aws_iam_role" "sfn_role" {
   name               = "${local.base_prefix}-sfn-role"
   assume_role_policy = data.aws_iam_policy_document.sfn_assume.json
@@ -24,6 +28,7 @@ data "aws_iam_policy_document" "sfn_policy" {
     resources = [
       aws_lambda_function.init_ledger.arn,
       aws_lambda_function.parse_email.arn,
+      data.aws_lambda_function.virus_scan.arn
     ]
   }
 }
@@ -46,6 +51,7 @@ resource "aws_sfn_state_machine" "email_pipeline" {
   definition = templatefile("email_pipeline.asl.json", {
     init_ledger_lambda_arn         = aws_lambda_function.init_ledger.arn
     parse_email_lambda_arn         = aws_lambda_function.parse_email.arn
+    virus_scan_lambda_arn          = data.aws_lambda_function.virus_scan.arn
   })
 
   depends_on = [
