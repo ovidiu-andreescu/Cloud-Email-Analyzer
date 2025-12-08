@@ -50,13 +50,6 @@ def clean_text(t: str) -> str:
 
 
 def lambda_handler(event, context):
-    """
-    Expected event format:
-    {
-        "subject": "Urgent invoice",
-        "body": "Please click here..."
-    }
-    """
     load_models()
 
     if 'body' in event and isinstance(event['body'], str):
