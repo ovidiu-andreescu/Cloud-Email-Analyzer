@@ -90,10 +90,10 @@ graph TD
 
 ## 📋 Prerequisites
 
-* [AWS CLI](https://aws.amazon.com/cli/) (configured with `eu-central-1` or your preferred region)
-* [Terraform](https://www.terraform.io/) (v1.6+)
-* [Docker Desktop](https://www.docker.com/) (running)
-* [Node.js](https://nodejs.org/) (v18+)
+* [AWS CLI](https://aws.amazon.com/cli/) 
+* [Terraform](https://www.terraform.io/)
+* [Docker Desktop](https://www.docker.com/)
+* [Node.js](https://nodejs.org/)
 
 ## 📦 Deployment Guide
 
@@ -112,48 +112,6 @@ terraform apply -var-file="../env/dev/terraform.tfvars"
 The ClamAV function requires EFS and special networking, managed by a separate CloudFormation stack.
 
 ```bash
-# From the root directory
-sam deploy --template-file clam-av.yaml --stack-name clam-av-stack --capabilities CAPABILITY_NAMED_IAM
-```
-
-Here is the rest of the README.md, starting from step 2 of the deployment guide.
-Markdown
-
-### 2. Virus Scanner (SAM/CloudFormation)
-
-The ClamAV function requires EFS and special networking, managed by a separate CloudFormation stack.
-
-```bash
-# From the root directory
-sam deploy --template-file clam-av.yaml --stack-name clam-av-stack --capabilities CAPABILITY_NAMED_IAM
-```
-
-### 3. Frontend Dashboard
-
-Build the React application and sync it to the static hosting S3 bucket.
-Bash
-
-```bash
-cd frontend
-npm install
-npm run build
-
-# Get your bucket name from terraform outputs
-BUCKET_NAME=$(terraform output -raw frontend_bucket_name)
-
-# Sync files
-aws s3 sync ./dist s3://$BUCKET_NAME --delete
-```
-
-Here is the rest of the README.md, starting from step 2 of the deployment guide.
-Markdown
-
-### 2. Virus Scanner (SAM/CloudFormation)
-
-The ClamAV function requires EFS and special networking, managed by a separate CloudFormation stack.
-
-```bash
-# From the root directory
 sam deploy --template-file clam-av.yaml --stack-name clam-av-stack --capabilities CAPABILITY_NAMED_IAM
 ```
 
@@ -166,10 +124,8 @@ cd frontend
 npm install
 npm run build
 
-# Get your bucket name from terraform outputs
 BUCKET_NAME=$(terraform output -raw frontend_bucket_name)
 
-# Sync files
 aws s3 sync ./dist s3://$BUCKET_NAME --delete
 ```
 
@@ -194,4 +150,4 @@ aws s3 cp test_email.eml s3://cloud-email-analyzer-dev-inbound/emails/
 Check the dashboard after a few seconds to see the analysis result.
 API Documentation
 
-The backend provides auto-generated documentation. Access it via the dashboard "API Docs" link or directly at: https://<your-api-id>.execute-api.eu-central-1.amazonaws.com/dev/docs
+The backend provides auto-generated documentation. Access it via the dashboard "API Docs" link
