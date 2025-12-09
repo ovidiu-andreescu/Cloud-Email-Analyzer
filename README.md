@@ -24,9 +24,10 @@ The system uses a hybrid serverless architecture:
 4.  **API:** FastAPI (Python) running on Lambda behind HTTP API Gateway.
 5.  **Frontend:** Single Page Application (React + Tailwind) hosted on S3.
 
+```mermaid
 graph TD
     subgraph Frontend
-        UI[React Dashboard (S3)]
+        UI[React Dashboard S3]
         User[Admin User]
         User -->|HTTPS| UI
     end
@@ -59,7 +60,7 @@ graph TD
         Init[Init Ledger Lambda]
         Parse[Parse Email Lambda]
         ClamAV[Virus Scan Lambda]
-        EFS[EFS (Virus Defs)]
+        EFS[EFS Virus Defs]
         ML[ML Analysis Lambda]
 
         StepFn --> Init
@@ -77,6 +78,7 @@ graph TD
         StepFn --> ML
         ML -->|Analyze Text| DDB
     end
+```
 
 ## 🛠 Tech Stack
 
