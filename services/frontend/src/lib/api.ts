@@ -8,6 +8,7 @@ export type Email = {
     subject: string
     category: string | null
     verdict: string | null
+    virus_verdict?: string | null
 }
 
 export type Paginated<T> = {

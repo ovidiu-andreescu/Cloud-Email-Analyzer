@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react"
-import Sidebar from "./components/Sidebar"
+import Sidebar from "../components/Sidebar"
 import StatCard from "../components/StatCard"
 import EmailTable from "../components/EmailTable"
 import Pagination from "../components/Pagination"

@@ -12,7 +12,7 @@ class EmailOut(BaseModel):
     subject: str
     category: Optional[str] = None
     verdict: Optional[str] = None
-
+    virus_verdict: Optional[str] = None
 
 class PaginatedEmails(BaseModel):
     items: list[EmailOut]

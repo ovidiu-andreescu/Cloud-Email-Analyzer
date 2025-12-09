@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom"
 export default function Sidebar() {
   const items = [
     { label: "Activity", icon: "📊", href: "/" },
-    { label: "API Docs", icon: "🔌", href: "/api-docs" }, // <-- NEW ITEM
+    { label: "API Docs", icon: "🔌", href: "/api-docs" },
     { label: "Block List", icon: "🚫", href: "/block-list" },
     { label: "Updates & Help", icon: "❓", href: "/help" },
     { label: "Users' Details", icon: "👥", href: "/users" },
@@ -21,19 +21,21 @@ export default function Sidebar() {
           <NavLink
             key={it.label}
             to={it.href}
-            // This function handles the active styling
-            className={({ isActive }) =>
-              "sidebar-item w-full " +
-              (isActive ? "bg-primary text-white hover:bg-primary" : "")
-            }
-            // We set 'end' for the root path to avoid it matching all routes
+            // Use 'end' for the home path so it doesn't stay active on sub-pages
             end={it.href === "/"}
+            className={({ isActive }) =>
+              "sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition " +
+              (isActive ? "bg-primary text-white hover:bg-primary" : "hover:bg-slate-100")
+            }
           >
-            <span className="text-xl">{it.icon}</span>
-            <span className="flex-1 text-left">{it.label}</span>
-
-            {/* This renders the '>' only if the link is active */}
-            {({ isActive }) => (isActive && <span>›</span>)}
+            {/* The render prop must wrap ALL content */}
+            {({ isActive }) => (
+              <>
+                <span className="text-xl">{it.icon}</span>
+                <span className="flex-1 text-left">{it.label}</span>
+                {isActive && <span>›</span>}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>

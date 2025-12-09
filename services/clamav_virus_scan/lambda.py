@@ -63,7 +63,7 @@ def update_ledger(message_id, scan_status):
         "INFECTED": "Unsafe",
         "ERROR": "Suspicious",
     }
-    verdict = verdict_map.get(scan_status, "Suspicious")
+    virus_status = verdict_map.get(scan_status, "Suspicious")
 
     try:
         table_name = os.environ.get("LEDGER_TABLE")
@@ -74,10 +74,10 @@ def update_ledger(message_id, scan_status):
         table = dynamodb.Table(table_name)
         table.update_item(
             Key={"messageId": message_id},
-            UpdateExpression="SET verdict = :v",
-            ExpressionAttributeValues={":v": verdict}
+            UpdateExpression="SET virus_verdict = :v",
+            ExpressionAttributeValues={":v": virus_status}
         )
-        logger.info(f"Updated ledger for {message_id}: {verdict}")
+        logger.info(f"Updated ledger for {message_id}: {virus_status}")
     except Exception as e:
         logger.error(f"Failed to update ledger: {e}")
 
