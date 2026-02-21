@@ -2,7 +2,7 @@
 
 A serverless, event-driven email security platform built on AWS. This application automatically analyzes incoming emails for viruses and metadata anomalies, providing a real-time dashboard for security administrators.
 
-## 🚀 Features
+## Features
 
 * **Automated Pipeline:** Ingests emails via SES/S3 and triggers analysis workflows automatically.
 * **Virus Scanning:** Serverless ClamAV scanning for email attachments using AWS Lambda & EFS.
@@ -10,7 +10,7 @@ A serverless, event-driven email security platform built on AWS. This applicatio
 * **Real-time Dashboard:** React-based admin UI to view traffic stats, verdicts, and search email history.
 * **Infrastructure as Code:** Fully reproducible architecture using Terraform and AWS SAM.
 
-## 🏗 Architecture
+## Architecture
 
 The system uses a hybrid serverless architecture:
 
@@ -80,7 +80,7 @@ graph TD
     end
 ```
 
-## 🛠 Tech Stack
+## Tech Stack
 
 * **Cloud Provider:** AWS
 * **IaC:** Terraform (Core Infra), AWS SAM/CloudFormation (ClamAV & EFS)
@@ -88,14 +88,14 @@ graph TD
 * **Frontend:** React, TypeScript, Tailwind CSS
 * **Containerization:** Docker (for Lambda functions)
 
-## 📋 Prerequisites
+## Prerequisites
 
 * [AWS CLI](https://aws.amazon.com/cli/) 
 * [Terraform](https://www.terraform.io/)
 * [Docker Desktop](https://www.docker.com/)
 * [Node.js](https://nodejs.org/)
 
-## 📦 Deployment Guide
+## Deployment Guide
 
 ### 1. Backend Infrastructure (Terraform)
 
@@ -129,7 +129,7 @@ BUCKET_NAME=$(terraform output -raw frontend_bucket_name)
 aws s3 sync ./dist s3://$BUCKET_NAME --delete
 ```
 
-💻 Usage
+Usage
 Accessing the Dashboard
 
 Get your frontend URL from Terraform:
