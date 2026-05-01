@@ -1,204 +1,240 @@
 # Cloud Email Analyzer
 
-A serverless, event-driven email security platform built on AWS. This application automatically analyzes incoming emails for viruses and metadata anomalies, providing a real-time dashboard for security administrators.
+Cloud Email Analyzer is a local-first email security inbox that is being migrated back toward an AWS-capable architecture.
 
-## Features
+The product goal is simple:
 
-* **Automated Pipeline:** Ingests emails via SES/S3 and triggers analysis workflows automatically.
-* **Virus Scanning:** Serverless ClamAV scanning for email attachments using AWS Lambda & EFS.
-* **Metadata Analysis:** Extracts headers, sender info, and subjects for security verdicts.
-* **Real-time Dashboard:** React-based admin UI to view traffic stats, verdicts, and search email history.
-* **Infrastructure as Code:** Fully reproducible architecture using Terraform and AWS SAM.
-
-## Architecture
-
-The system uses a hybrid serverless architecture:
-
-1.  **Ingestion:** Emails are stored in an S3 Inbound Bucket (triggered via SES or direct upload).
-2.  **Orchestration:** EventBridge triggers an AWS Step Function pipeline.
-3.  **Processing:**
-    * `init_ledger`: Creates a transaction record in DynamoDB.
-    * `parse_email`: Extracts attachments and metadata to S3.
-    * `virus-scan`: Checks attachments using a ClamAV Lambda with EFS-mounted virus definitions.
-    * `ml-analysis`: Assigns phishing verdicts (Safe/Suspicious/Unsafe) and spam verdicts.
-4.  **API:** FastAPI (Python) running on Lambda behind HTTP API Gateway.
-5.  **Frontend:** Single Page Application (React + Tailwind) hosted on S3.
-
-```mermaid
-graph TD
-    subgraph Frontend
-        UI[React Dashboard S3]
-        User[Admin User]
-        User -->|HTTPS| UI
-    end
-
-    subgraph "API Layer"
-        APIGW[HTTP API Gateway]
-        FastAPI[FastAPI Lambda]
-        UI -->|Fetch Data| APIGW
-        APIGW --> FastAPI
-    end
-
-    subgraph "Data Store"
-        DDB[(DynamoDB Ledger)]
-        S3_Attach[S3 Attachments]
-        FastAPI -->|Read| DDB
-    end
-
-    subgraph "Ingestion Pipeline"
-        Email[Incoming Email]
-        S3_In[S3 Inbound Bucket]
-        EB[EventBridge]
-        StepFn[Step Functions Workflow]
-        
-        Email -->|SES / Upload| S3_In
-        S3_In -->|Object Created| EB
-        EB -->|Trigger| StepFn
-    end
-
-    subgraph "Analysis Workflows"
-        Init[Init Ledger Lambda]
-        Parse[Parse Email Lambda]
-        ClamAV[Virus Scan Lambda]
-        EFS[EFS Virus Defs]
-        ML[ML Analysis Lambda]
-
-        StepFn --> Init
-        Init -->|Create Record| DDB
-        
-        StepFn --> Parse
-        Parse -->|Extract Files| S3_Attach
-        Parse -->|Update Meta| DDB
-
-        StepFn --> ClamAV
-        ClamAV -->|Mount| EFS
-        ClamAV -->|Scan File| S3_Attach
-        ClamAV -->|Update virus_verdict| DDB
-
-        StepFn --> ML
-        ML -->|Analyze Text| DDB
-    end
+```text
+Receive or seed an email
+  -> store the raw MIME message
+  -> parse body, headers, URLs, and attachments
+  -> run phishing ML on the body text
+  -> scan attachments with ClamAV
+  -> store the ledger in DynamoDB
+  -> show the result in an authenticated dashboard
 ```
 
-## Tech Stack
+The current working milestone is the **LocalStack Pro image-mode demo**. It uses LocalStack S3, DynamoDB, EventBridge, Step Functions, Lambda container images, local ECR, FastAPI, and React.
 
-* **Cloud Provider:** AWS
-* **IaC:** Terraform (Core Infra), AWS SAM/CloudFormation (ClamAV & EFS)
-* **Backend:** Python 3.11+, FastAPI, AWS Lambda, DynamoDB, Step Functions
-* **Frontend:** React, TypeScript, Tailwind CSS
-* **Containerization:** Docker (for Lambda functions)
+## Why This Migration Exists
 
-## Prerequisites
+The original project was built for AWS email ingestion and scanning, but the AWS account was shut down after cost issues around the ClamAV VM/layer workflow. We revived the project with a local-first design so development and demos do not depend on a live AWS account.
 
-* [AWS CLI](https://aws.amazon.com/cli/) 
-* [Terraform](https://www.terraform.io/)
-* [Docker Desktop](https://www.docker.com/)
-* [Node.js](https://nodejs.org/)
+The important architecture change is the canonical `MailReceived` event:
 
-## Deployment Guide
+```text
+Local mode:
+  .eml fixture -> LocalStack S3 -> MailReceived event -> shared pipeline
 
-## LocalStack Demo
+AWS mode:
+  SES inbound email -> S3 -> SES adapter -> MailReceived event -> shared pipeline
+```
 
-The local demo does not require AWS SES or Route53. It simulates SES inbound
-mail by uploading a raw `.eml` file to LocalStack S3 and emitting the shared
-`MailReceived` EventBridge event used by the analysis pipeline.
+That means ingestion is environment-specific, but parsing, ML, ClamAV, storage, API, and dashboard behavior stay shared.
+
+## Operating Modes
+
+| Mode | Status | Purpose | Lambda packaging | Notes |
+| --- | --- | --- | --- | --- |
+| Local Pro | Current default | Best local demo and development path | Container images in LocalStack ECR | Requires a LocalStack auth token. Runs packaged ML and ClamAV image scanner. |
+| Local Free | Future fallback | Keep a no-subscription local path available | ZIP Lambdas | Guarded and experimental. Real local-free ClamAV and packaged ML support are not finished yet. |
+| AWS | Future deployment path | Real inbound email and hosted cloud deployment | ECR Lambda images | Terraform is partially AWS-ready, but SES adapter, full image publish flow, Cognito, and production ClamAV lifecycle still need final work. |
+
+## Local Pro Quick Start
+
+Prerequisites:
+
+- Docker Desktop
+- AWS CLI
+- Terraform
+- Node.js/npm
+- LocalStack auth token saved in `.env.localstack`
+
+The token file should look like this:
 
 ```bash
-make local-up
-make local-build
-make local-deploy
-make local-create-users
-make local-seed-phishing
-make local-ui
+LOCALSTACK_AUTH_TOKEN=your-token-here
 ```
 
-Open `http://localhost:5173` and sign in with one of the demo accounts:
-
-* `admin@demo.local` / `admin123!demo`
-* `alice@demo.local` / `alice123!demo`
-* `bob@demo.local` / `bob123!demo`
-
-Useful seed commands:
-
-```bash
-make local-seed-benign
-make local-seed-phishing
-make local-seed-eicar
-```
-
-`make local-ui` builds the React dashboard and starts both the FastAPI API and
-static dashboard containers. `make local-api` is still available when you want
-to run only the API in the foreground.
-
-For Codex/demo runs, use the wrapper targets:
+Start the full local demo:
 
 ```bash
 make codex-start
-make codex-status
+```
+
+Open:
+
+```text
+Dashboard: http://localhost:5173/login
+API:       http://localhost:8000/
+```
+
+Stop containers and clear the local database/S3 state:
+
+```bash
 make codex-stop
 ```
 
-`codex-start` starts LocalStack, deploys the local pipeline, creates demo users,
-seeds demo messages only when the message table is empty, and starts the API and
-dashboard. `codex-stop` stops LocalStack, API, and dashboard containers without
-deleting the LocalStack volume.
-
-Local mode keeps the AWS-compatible serverless shape: S3, EventBridge, Step
-Functions, Lambda packages, DynamoDB, FastAPI, and React. AWS-only resources
-such as SES, Route53, CloudFront, EFS, and ClamAV signature updater are disabled
-for `local-dev`.
-
-### 1. Backend Infrastructure (Terraform)
-
-Deploy the core infrastructure (Networking, DynamoDB, API Gateway, S3, Core Lambdas).
+Repopulate demo users and messages without restarting:
 
 ```bash
-cd infra/terraform
-terraform init
-terraform apply -var-file="../env/dev/terraform.tfvars"
+make codex-populate
 ```
 
-### 2. Virus Scanner (SAM/CloudFormation)
-
-The ClamAV function requires EFS and special networking, managed by a separate CloudFormation stack.
+Check container status:
 
 ```bash
-sam deploy --template-file clam-av.yaml --stack-name clam-av-stack --capabilities CAPABILITY_NAMED_IAM
+make codex-status
 ```
 
-### 3. Frontend Dashboard
+## Demo Accounts
 
-Build the React application and sync it to the static hosting S3 bucket.
+The application does not hardcode users or messages. The population scripts create them in DynamoDB.
+
+```text
+admin@demo.local / admin123!demo
+alice@demo.local / alice123!demo
+bob@demo.local   / bob123!demo
+```
+
+Seeded messages currently cover:
+
+- benign email
+- phishing-like email
+- EICAR attachment email
+- multiple safe attachments layout test
+
+## Current Local Flow
+
+```text
+fixtures/*.eml
+  -> scripts/populate_demo.py
+  -> scripts/local_seed_email.py
+  -> LocalStack S3 raw email bucket
+  -> canonical MailReceived EventBridge event
+  -> Step Functions workflow
+       InitLedger
+       ResolveRecipients
+       ParseEmail
+       PhishingML
+       AttachmentScan
+       AggregateVerdicts
+  -> DynamoDB tables
+  -> FastAPI
+  -> React dashboard
+```
+
+Local mode simulates inbound email through `.eml` fixtures because LocalStack SES does not receive real inbound mail.
+
+## DynamoDB Tables
+
+Local tables use this prefix by default:
+
+```text
+cloud-email-analyzer-local-dev
+```
+
+Tables:
+
+- `users`
+- `mailboxes`
+- `messages`
+- `inbox-messages`
+- `attachments`
+- `audit-log`
+
+`make codex-stop` removes the LocalStack volume, so the next `make codex-start` begins with a clean database and then repopulates demo data.
+
+## API Routes
+
+Current authenticated API:
+
+```text
+POST /auth/login
+GET  /me
+GET  /messages
+GET  /messages/{messageId}
+GET  /messages/{messageId}/indicators
+GET  /messages/{messageId}/timeline
+GET  /messages/{messageId}/attachments
+GET  /messages/{messageId}/attachments/{attachmentId}/download
+
+GET  /admin/messages
+POST /admin/messages/{messageId}/reprocess
+GET  /admin/users
+GET  /admin/mailboxes
+GET  /admin/audit-log
+GET  /admin/metrics/security-summary
+GET  /admin/metrics/verdicts-over-time
+```
+
+Authorization is enforced by the backend:
+
+- admins can view all analyzed messages in admin tools
+- normal users can only view messages mapped to their user ID
+- attachment downloads repeat the same ownership/admin check
+
+## Important Make Targets
 
 ```bash
-cd frontend
-npm install
-npm run build
-
-BUCKET_NAME=$(terraform output -raw frontend_bucket_name)
-
-aws s3 sync ./dist s3://$BUCKET_NAME --delete
+make local-up              # start LocalStack only
+make local-build           # default: build/push LocalStack Pro Lambda images
+make local-deploy          # apply local infra and wire Step Functions/EventBridge
+make local-create-users    # create demo users and mailboxes
+make local-seed-benign     # seed benign email
+make local-seed-phishing   # seed phishing-like email
+make local-seed-eicar      # seed EICAR attachment email
+make local-seed-multiple   # seed multiple safe attachments email
+make local-ui              # build and serve frontend plus API
+make local-down            # stop and clear local data
 ```
 
-Usage
-Accessing the Dashboard
+## Local Free Mode
 
-Get your frontend URL from Terraform:
+Local free mode is intentionally preserved, but it is not the supported demo path yet.
 
 ```bash
-terraform output frontend_url
+ALLOW_EXPERIMENTAL_ZIP_LAMBDAS=1 LOCAL_LAMBDA_MODE=zip make codex-start
 ```
 
-Open the link in your browser to view the Administrator Dashboard.
-Testing the Pipeline
+Current limitations:
 
-You can test the flow by uploading a raw .eml file to the Inbound S3 bucket:
+- ZIP ClamAV does not include a production scanner/signature lifecycle.
+- ZIP ML does not yet package the trained model artifacts.
+- This mode is for future development only.
+
+## AWS Migration Status
+
+The project is designed so AWS can reuse the same pipeline after an AWS ingestion adapter emits the canonical `MailReceived` event.
+
+Still needed before a real AWS deployment:
+
+- SES receipt rule and SES-to-`MailReceived` adapter
+- ECR build/push flow for every Lambda image
+- Cognito or production-grade auth configuration
+- real `jwt_secret` value if deploying the current local-JWT API mode
+- Route53/domain setup for real inbound mail
+- production ClamAV signature update lifecycle
+- frontend hosting validation with S3/CloudFront
+
+Do not use old direct-S3 upload scripts as the real ingestion model. The shared contract is `MailReceived`.
+
+## Verification
+
+Frontend build:
 
 ```bash
-aws s3 cp test_email.eml s3://cloud-email-analyzer-dev-inbound/emails/
+cd services/frontend && npm run build
 ```
 
-Check the dashboard after a few seconds to see the analysis result.
-API Documentation
+Python compile check:
 
-The backend provides auto-generated documentation. Access it via the dashboard "API Docs" link
+```bash
+python3 -m compileall -q services/web_server/src services/parse_email/src services/init_ledger/src services/aggregate_verdicts/src services/phishing_ml_predict services/clamav_virus_scan tests/unit
+```
+
+Unit tests:
+
+```bash
+uv run --extra test --with fastapi==0.115.5 --with boto3 --with botocore python -m pytest tests/unit
+```

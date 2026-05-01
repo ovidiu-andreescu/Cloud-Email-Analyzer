@@ -1,12 +1,12 @@
 import os
 import mimetypes
 import hashlib
-from urllib.parse import quote
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from email import policy
 from email.parser import BytesParser
 
-from services_common.aws_helper import s3_write , s3_write_bytes, get_table
+from services_common.aws_helper import s3_write, s3_write_bytes, get_table
 from services_common.aws_helper import get_s3
 from services_common.contracts import attachment_id, detail_from_event, ensure_artifacts
 
@@ -65,9 +65,17 @@ def handler(event, context):
                         content_type=ctype,
                         metadata={"messageId": message_id, "attachmentId": att_id}
                     )
-                except Exception as e:
-                    print(f"Error uploading attachment: {e}")
-                    continue
+                except Exception as exc:
+                    MESSAGES.update_item(
+                        Key={"messageId": message_id},
+                        UpdateExpression="SET #st = :st, parseError = :err",
+                        ExpressionAttributeNames={"#st": "status"},
+                        ExpressionAttributeValues={
+                            ":st": "FAILED",
+                            ":err": f"attachment_upload_failed:{fname}",
+                        },
+                    )
+                    raise RuntimeError(f"attachment_upload_failed:{fname}") from exc
 
                 sha256 = hashlib.sha256(data).hexdigest()
                 att = {
@@ -116,11 +124,12 @@ def handler(event, context):
     }, metadata={"messageId": message_id})
 
     has_attachments = len(saved_attachments) > 0
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     MESSAGES.update_item(
         Key={"messageId": message_id},
         UpdateExpression="SET subject = :sub, #from = :frm, mimeTo = :recip, hasAttachments = :ha, "
-                         "attachmentCount = :ac, parsedBucket = :pb, parsedKey = :pk, #st = :st",
+                         "attachmentCount = :ac, parsedBucket = :pb, parsedKey = :pk, parsedAt = :now, #st = :st",
         ExpressionAttributeNames={"#st": "status", "#from": "from"},
         ExpressionAttributeValues={
             ":sub": subject,
@@ -130,6 +139,7 @@ def handler(event, context):
             ":ac": len(saved_attachments),
             ":pb": artifact_bucket,
             ":pk": out_key,
+            ":now": now,
             ":st": "PARSED",
         }
     )

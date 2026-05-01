@@ -20,6 +20,17 @@ variable "localstack_endpoint" {
   default = ""
 }
 
+variable "local_lambda_mode" {
+  description = "Local Lambda packaging mode. Use image for LocalStack Pro parity; use zip for the future community fallback."
+  type        = string
+  default     = "image"
+
+  validation {
+    condition     = contains(["image", "zip"], var.local_lambda_mode)
+    error_message = "local_lambda_mode must be either image or zip."
+  }
+}
+
 variable "domain_name" {
   description = "Root domain managed in Route53 for SES inbound (dev/prod)."
   type        = string
@@ -82,6 +93,13 @@ variable "aggregate_verdicts_image_uri" {
 variable "web_server_image_uri" {
   type    = string
   default = ""
+}
+
+variable "jwt_secret" {
+  description = "JWT signing secret for the API Lambda. Required when deploying the API outside local Docker demo mode."
+  type        = string
+  default     = ""
+  sensitive   = true
 }
 
 variable "extract_attachments_image_uri" {

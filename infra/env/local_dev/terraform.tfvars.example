@@ -4,6 +4,7 @@ tenant_id           = "demo"
 region              = "eu-central-1"
 domain_name         = ""
 localstack_endpoint = "http://localhost:4566"
+local_lambda_mode   = "image"
 
 tags = {
   Owner = "local"

@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
+import base64
+import hashlib
 import json
 import os
 import subprocess
+from pathlib import Path
 
 
 REGION = os.getenv("AWS_DEFAULT_REGION", "eu-central-1")
 ENDPOINT = os.getenv("AWS_ENDPOINT_URL", os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566"))
 PREFIX = os.getenv("LOCAL_PREFIX", "cloud-email-analyzer-local-dev")
+PASSWORD_ALGORITHM = "pbkdf2_sha256"
+PASSWORD_ITERATIONS = 200000
+DEFAULT_POPULATION_FILE = Path(__file__).resolve().parents[1] / "fixtures" / "demo_population.json"
 
 
 def aws(*args):
@@ -41,24 +47,56 @@ def put_item(table, item):
     }))
 
 
+def password_hash(password, salt):
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_ITERATIONS,
+    )
+    return base64.b64encode(digest).decode("ascii")
+
+
+def demo_user(user_id, email, display_name, role, password, salt):
+    return {
+        "userId": user_id,
+        "email": email,
+        "displayName": display_name,
+        "role": role,
+        "tenantId": "demo",
+        "status": "ACTIVE",
+        "passwordAlgorithm": PASSWORD_ALGORITHM,
+        "passwordHash": password_hash(password, salt),
+        "passwordIterations": PASSWORD_ITERATIONS,
+        "passwordSalt": salt,
+    }
+
+
+def load_population():
+    population_file = Path(os.getenv("DEMO_POPULATION_FILE", DEFAULT_POPULATION_FILE))
+    return json.loads(population_file.read_text())
+
+
 def main():
     users = os.getenv("USERS_TABLE", f"{PREFIX}-users")
     mailboxes = os.getenv("MAILBOXES_TABLE", f"{PREFIX}-mailboxes")
+    population = load_population()
 
     demo_users = [
-        {"userId": "USER#admin", "email": "admin@demo.local", "displayName": "Security Admin", "role": "admin", "tenantId": "demo", "status": "ACTIVE"},
-        {"userId": "USER#alice", "email": "alice@demo.local", "displayName": "Alice", "role": "user", "tenantId": "demo", "status": "ACTIVE"},
-        {"userId": "USER#bob", "email": "bob@demo.local", "displayName": "Bob", "role": "user", "tenantId": "demo", "status": "ACTIVE"},
+        demo_user(
+            user["userId"],
+            user["email"],
+            user["displayName"],
+            user["role"],
+            user["password"],
+            user["passwordSalt"],
+        )
+        for user in population["users"]
     ]
     for user in demo_users:
         put_item(users, user)
 
-    mailbox_rows = [
-        {"emailAddress": "alice@demo.local", "tenantId": "demo", "ownerUserIds": ["USER#alice"], "mailboxType": "PERSONAL"},
-        {"emailAddress": "bob@demo.local", "tenantId": "demo", "ownerUserIds": ["USER#bob"], "mailboxType": "PERSONAL"},
-        {"emailAddress": "security@demo.local", "tenantId": "demo", "ownerUserIds": ["USER#admin"], "mailboxType": "QUARANTINE"},
-        {"emailAddress": "quarantine@demo.local", "tenantId": "demo", "ownerUserIds": ["USER#admin"], "mailboxType": "QUARANTINE"},
-    ]
+    mailbox_rows = population["mailboxes"]
     for mailbox in mailbox_rows:
         put_item(mailboxes, mailbox)
 

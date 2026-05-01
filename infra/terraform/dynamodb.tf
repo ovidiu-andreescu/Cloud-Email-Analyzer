@@ -109,3 +109,23 @@ resource "aws_dynamodb_table" "attachments" {
 
   tags = local.tags
 }
+
+resource "aws_dynamodb_table" "audit_log" {
+  count        = local.is_local ? 0 : 1
+  name         = local.audit_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "tenantId"
+  range_key    = "sortKey"
+
+  attribute {
+    name = "tenantId"
+    type = "S"
+  }
+
+  attribute {
+    name = "sortKey"
+    type = "S"
+  }
+
+  tags = local.tags
+}

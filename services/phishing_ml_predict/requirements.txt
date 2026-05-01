@@ -1,4 +1,5 @@
-scikit-learn
+scikit-learn==1.7.2
 pandas
-joblib
-numpy
+joblib==1.5.2
+numpy==2.0.2
+scipy==1.14.1

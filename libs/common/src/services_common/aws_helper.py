@@ -33,6 +33,7 @@ def get_table(table_env_name: str):
         "MAILBOXES_TABLE": f"{prefix}-mailboxes",
         "INBOX_TABLE": f"{prefix}-inbox-messages",
         "ATTACHMENTS_TABLE": f"{prefix}-attachments",
+        "AUDIT_TABLE": f"{prefix}-audit-log",
     }
     table_name = os.environ.get(table_env_name, defaults.get(table_env_name))
     if not table_name:

@@ -2,6 +2,7 @@ locals {
   base_prefix             = "${var.project}-${var.env}"
   lambda_names            = { for name, _ in var.lambda_defs : name => "${local.base_prefix}-${name}" }
   is_local                = var.env == "local-dev"
+  use_zip_lambdas         = local.is_local && var.local_lambda_mode == "zip"
   enable_ses              = var.env != "local-dev" && var.domain_name != ""
   enable_frontend_hosting = !local.is_local
 
@@ -15,6 +16,7 @@ locals {
   mailboxes_table_name   = "${local.base_prefix}-mailboxes"
   inbox_table_name       = "${local.base_prefix}-inbox-messages"
   attachments_table_name = "${local.base_prefix}-attachments"
+  audit_table_name       = "${local.base_prefix}-audit-log"
 
   inbound_prefix = "emails/"
   parsed_prefix  = "parsed/"
@@ -27,6 +29,7 @@ locals {
   mailboxes_table_arn   = "${local.dynamodb_arn_prefix}/${local.mailboxes_table_name}"
   inbox_table_arn       = "${local.dynamodb_arn_prefix}/${local.inbox_table_name}"
   attachments_table_arn = "${local.dynamodb_arn_prefix}/${local.attachments_table_name}"
+  audit_table_arn       = "${local.dynamodb_arn_prefix}/${local.audit_table_name}"
 
   api_gateway_name = "http-api"
 

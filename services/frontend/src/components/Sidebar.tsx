@@ -1,48 +1,74 @@
+import { BookOpen, Inbox, LogOut, Shield, UserCircle } from "lucide-react"
 import React from "react"
 import { NavLink } from "react-router-dom"
+import { clearToken, type User } from "../lib/api"
 
-export default function Sidebar() {
+export default function Sidebar({ user }: { user: User }) {
   const items = [
-    { label: "Inbox", icon: "📊", href: "/" },
-    { label: "Admin", icon: "👥", href: "/admin" },
-    { label: "API Docs", icon: "🔌", href: "/api-docs" },
+    { label: "Inbox", icon: Inbox, href: "/" },
+    ...(user.role === "admin"
+      ? [
+          { label: "Admin", icon: Shield, href: "/admin" },
+          { label: "API Docs", icon: BookOpen, href: "/api-docs" },
+        ]
+      : []),
   ]
 
+  function signOut() {
+    clearToken()
+    location.href = "/login"
+  }
+
   return (
-    <aside className="w-64 bg-white h-screen sticky top-0 p-6 hidden md:flex flex-col border-r border-slate-100">
-      <div className="flex items-center gap-2 mb-8">
-        <div className="w-9 h-9 rounded-xl bg-primary/10 grid place-items-center text-primary font-bold">E</div>
-        <div className="text-lg font-semibold">Email Analyzer</div>
-      </div>
-      <nav className="space-y-1">
-        {items.map((it) => (
-          <NavLink
-            key={it.label}
-            to={it.href}
-            // Use 'end' for the home path so it doesn't stay active on sub-pages
-            end={it.href === "/"}
-            className={({ isActive }) =>
-              "sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition " +
-              (isActive ? "bg-primary text-white hover:bg-primary" : "hover:bg-slate-100")
-            }
-          >
-            {/* The render prop must wrap ALL content */}
-            {({ isActive }) => (
-              <>
-                <span className="text-xl">{it.icon}</span>
-                <span className="flex-1 text-left">{it.label}</span>
-                {isActive && <span>›</span>}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-      <div className="mt-auto flex items-center gap-3 pt-6">
-        <img src="/avatar.png" className="w-10 h-10 rounded-full" alt="avatar" />
-        <div>
-          <div className="font-medium">Local Demo</div>
-          <button className="text-sm text-slate-500" onClick={() => { localStorage.removeItem("accessToken"); location.href = "/login" }}>Sign out</button>
+    <aside className="hidden h-screen w-64 flex-col border-r border-slate-200 bg-white p-5 md:flex sticky top-0">
+      <div className="mb-8 flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
+          <Shield size={22} aria-hidden="true" />
         </div>
+        <div>
+          <div className="text-lg font-semibold leading-tight">Email Analyzer</div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">Security inbox</div>
+        </div>
+      </div>
+
+      <nav className="space-y-1" aria-label="Primary navigation">
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <NavLink
+              key={item.href}
+              to={item.href}
+              end={item.href === "/"}
+              className={({ isActive }) =>
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition " +
+                (isActive ? "bg-primary text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900")
+              }
+            >
+              <Icon size={18} aria-hidden="true" />
+              <span>{item.label}</span>
+            </NavLink>
+          )
+        })}
+      </nav>
+
+      <div className="mt-auto border-t border-slate-100 pt-5">
+        <div className="flex items-start gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500">
+            <UserCircle size={22} aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-800">{user.email}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-400">{user.role}</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={signOut}
+          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <LogOut size={16} aria-hidden="true" />
+          Sign out
+        </button>
       </div>
     </aside>
   )

@@ -9,9 +9,10 @@ requires-python = ">=3.11"
 dependencies = [
   "boto3",
   "botocore",
-  "joblib",
-  "numpy",
-  "scikit-learn",
+  "joblib==1.5.2",
+  "numpy==2.0.2",
+  "scipy==1.14.1",
+  "scikit-learn==1.7.2",
   "services-common",
 ]
 

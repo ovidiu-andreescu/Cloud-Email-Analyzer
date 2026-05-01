@@ -1,120 +1,108 @@
-# tests/unit/test_parse_email.py
-import os
-import pytest
-from unittest.mock import patch, MagicMock
 from email.message import EmailMessage
+from io import BytesIO
+from pathlib import Path
+import sys
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "services/parse_email/src"))
+sys.path.insert(0, str(ROOT / "libs/common/src"))
 
 
-class TestParseEmailHandler:
-    def setup_method(self):
-        if "OUT_PREFIX" in os.environ:
-            del os.environ["OUT_PREFIX"]
+class FakeS3:
+    def __init__(self, raw: bytes):
+        self.raw = raw
 
-    def teardown_method(self):
-        if "OUT_PREFIX" in os.environ:
-            del os.environ["OUT_PREFIX"]
+    def get_object(self, Bucket, Key):
+        return {"Body": BytesIO(self.raw)}
 
-    def _plain_email(self, subject="Hello", sender="a@ex.com", to="b@ex.com", body="plain text body"):
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = sender
-        msg["To"] = to
-        msg.set_content(body)  # text/plain
-        return msg
 
-    def _html_email(self, subject="Hi", sender="a@ex.com", to="b@ex.com", text="text part", html="<b>hi</b>"):
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = sender
-        msg["To"] = to
-        msg.set_content(text)
-        msg.add_alternative(html, subtype="html")
-        return msg
+class FakeTable:
+    def __init__(self):
+        self.items = []
+        self.updates = []
 
-    def _email_with_attachment(self, subject="Attach", sender="a@ex.com", to="b@ex.com"):
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = sender
-        msg["To"] = to
-        msg.set_content("body")
-        msg.add_attachment(b"malware-bytes", maintype="application", subtype="octet-stream", filename="evil.exe")
-        return msg
+    def put_item(self, Item):
+        self.items.append(Item)
 
-    @patch("parse_email.main.s3_write")
-    @patch("parse_email.main.mail_extract")
-    def test_handler_plain_text_email_writes_summary_and_updates_event(self, mock_extract, mock_s3_write):
-        from parse_email.main import handler
+    def update_item(self, **kwargs):
+        self.updates.append(kwargs)
 
-        msg = self._plain_email(body="hello world")
-        mock_extract.return_value = ("msg-1", msg, "inbox-bucket", "emails/1.eml")
 
-        input_event = {"bucket": "ignored", "key": "ignored"}
-        result = handler(input_event, MagicMock())
+def _event(message_id="msg-1"):
+    return {
+        "tenantId": "demo",
+        "messageId": message_id,
+        "receivedAt": "2026-05-01T12:00:00Z",
+        "raw": {"bucket": "raw-bucket", "key": f"raw/{message_id}.eml"},
+        "envelope": {"mailFrom": "sender@example.com", "recipients": ["alice@demo.local"]},
+        "headers": {"from": "sender@example.com", "subject": "Test message"},
+    }
 
-        expected_key = "parsed/msg-1.json"
-        mock_s3_write.assert_called_once()
-        call_args = mock_s3_write.call_args
-        assert call_args.args[0] == "inbox-bucket"
-        assert call_args.args[1] == expected_key
-        payload = call_args.args[2]
-        assert "headers" in payload and "summary" in payload
-        assert payload["summary"]["messageId"] == "msg-1"
-        assert payload["summary"]["hasHtml"] is False
-        assert payload["summary"]["textPreview"].startswith("hello world")
-        assert call_args.kwargs.get("metadata") == {"messageId": "msg-1"}
 
-        # event enriched
-        assert result["artifacts"]["parsed"] == {"bucket": "inbox-bucket", "key": expected_key}
-        assert result["mail"] == {"subject": msg["Subject"], "from": msg["From"], "to": msg["To"]}
-        assert result["maybeHasAttachments"] is False
+def _email_with_attachment() -> bytes:
+    msg = EmailMessage()
+    msg["Subject"] = "Attachment test"
+    msg["From"] = "sender@example.com"
+    msg["To"] = "alice@demo.local"
+    msg.set_content("Plain body")
+    msg.add_attachment(b"file-bytes", maintype="text", subtype="plain", filename="note.txt")
+    return msg.as_bytes()
 
-    @patch("parse_email.main.s3_write")
-    @patch("parse_email.main.mail_extract")
-    def test_handler_multipart_html_detects_has_html(self, mock_extract, mock_s3_write):
-        from parse_email.main import handler
 
-        msg = self._html_email(text="hello", html="<b>hi</b>")
-        mock_extract.return_value = ("msg-2", msg, "inbox-bucket", "emails/2.eml")
+def test_handler_writes_parsed_body_and_attachment_records(monkeypatch):
+    from parse_email import main
 
-        result = handler({"bucket": "ignored", "key": "ignored"}, MagicMock())
-        payload = mock_s3_write.call_args.args[2]
-        assert payload["summary"]["hasHtml"] is True
-        assert payload["summary"]["textPreview"].startswith("hello")
-        assert result["maybeHasAttachments"] is False
+    messages = FakeTable()
+    attachments = FakeTable()
+    json_writes = []
+    byte_writes = []
 
-    @patch("parse_email.main.s3_write")
-    @patch("parse_email.main.mail_extract")
-    def test_handler_detects_attachments_sets_flag_true(self, mock_extract, mock_s3_write):
-        from parse_email.main import handler
+    monkeypatch.setattr(main, "get_s3", lambda: FakeS3(_email_with_attachment()))
+    monkeypatch.setattr(main, "MESSAGES", messages)
+    monkeypatch.setattr(main, "ATTACHMENTS", attachments)
+    monkeypatch.setattr(main, "s3_write", lambda *args, **kwargs: json_writes.append((args, kwargs)))
+    monkeypatch.setattr(main, "s3_write_bytes", lambda *args, **kwargs: byte_writes.append((args, kwargs)))
 
-        msg = self._email_with_attachment()
-        mock_extract.return_value = ("msg-3", msg, "inbox-bucket", "emails/3.eml")
+    result = main.handler(_event(), None)
 
-        result = handler({"bucket": "ignored", "key": "ignored"}, MagicMock())
-        assert result["maybeHasAttachments"] is True
+    assert result["artifacts"]["parsed"] == {
+        "bucket": "raw-bucket",
+        "key": "parsed/msg-1/body.json",
+    }
+    assert result["hasAttachments"] is True
+    assert len(result["artifacts"]["attachments"]) == 1
 
-    @patch("parse_email.main.s3_write")
-    @patch("parse_email.main.mail_extract")
-    def test_handler_respects_custom_out_prefix_env(self, mock_extract, mock_s3_write):
-        from parse_email.main import handler
+    assert byte_writes[0][0][0] == "raw-bucket"
+    assert byte_writes[0][0][1].startswith("attachments/msg-1/000-")
+    assert attachments.items[0]["scanStatus"] == "PENDING"
+    assert attachments.items[0]["sha256"]
 
-        os.environ["OUT_PREFIX"] = "custom-prefix/"
-        msg = self._plain_email()
-        mock_extract.return_value = ("xyz", msg, "inbox-bucket", "emails/x.eml")
+    parsed_payload = json_writes[0][0][2]
+    assert parsed_payload["summary"]["subject"] == "Attachment test"
+    assert parsed_payload["text"] == "Plain body\n"
 
-        handler({"bucket": "ignored", "key": "ignored"}, MagicMock())
-        assert mock_s3_write.call_args.args[1] == "custom-prefix/xyz.json"
+    update = messages.updates[-1]
+    assert update["ExpressionAttributeValues"][":ac"] == 1
+    assert update["ExpressionAttributeValues"][":st"] == "PARSED"
 
-    @patch("parse_email.main.s3_write")
-    @patch("parse_email.main.mail_extract")
-    def test_handler_text_preview_truncates_to_1000(self, mock_extract, mock_s3_write):
-        from parse_email.main import handler
 
-        long_text = "A" * 2000
-        msg = self._plain_email(body=long_text)
-        mock_extract.return_value = ("truncate-1", msg, "inbox-bucket", "emails/t.eml")
+def test_attachment_upload_failure_marks_message_failed(monkeypatch):
+    from parse_email import main
 
-        handler({"bucket": "ignored", "key": "ignored"}, MagicMock())
-        preview = mock_s3_write.call_args.args[2]["summary"]["textPreview"]
-        assert len(preview) == 1000
-        assert preview == "A" * 1000
+    messages = FakeTable()
+
+    def fail_upload(*args, **kwargs):
+        raise RuntimeError("s3 unavailable")
+
+    monkeypatch.setattr(main, "get_s3", lambda: FakeS3(_email_with_attachment()))
+    monkeypatch.setattr(main, "MESSAGES", messages)
+    monkeypatch.setattr(main, "s3_write_bytes", fail_upload)
+
+    with pytest.raises(RuntimeError, match="attachment_upload_failed:note.txt"):
+        main.handler(_event(), None)
+
+    update = messages.updates[-1]
+    assert update["ExpressionAttributeValues"][":st"] == "FAILED"
+    assert update["ExpressionAttributeValues"][":err"] == "attachment_upload_failed:note.txt"

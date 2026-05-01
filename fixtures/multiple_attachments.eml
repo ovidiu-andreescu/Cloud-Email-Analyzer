@@ -1,0 +1,50 @@
+From: reports@example.com
+To: security@demo.local
+Subject: Multiple attachment layout test
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="multi-attachment-boundary"
+
+--multi-attachment-boundary
+Content-Type: text/plain; charset=utf-8
+
+This message is used to verify the dashboard layout when one message has several safe attachments.
+
+--multi-attachment-boundary
+Content-Type: text/plain; charset=utf-8
+Content-Disposition: attachment; filename="readme.txt"
+Content-Transfer-Encoding: 7bit
+
+Local demo attachment set.
+This file should be scanned as safe.
+
+--multi-attachment-boundary
+Content-Type: text/csv; charset=utf-8
+Content-Disposition: attachment; filename="mailbox-summary.csv"
+Content-Transfer-Encoding: 7bit
+
+mailbox,count
+alice@demo.local,1
+bob@demo.local,1
+security@demo.local,1
+
+--multi-attachment-boundary
+Content-Type: application/json
+Content-Disposition: attachment; filename="scan-config.json"
+Content-Transfer-Encoding: 7bit
+
+{"mode":"local-demo","scanner":"clamav","expectedVerdict":"SAFE"}
+
+--multi-attachment-boundary
+Content-Type: text/html; charset=utf-8
+Content-Disposition: attachment; filename="preview.html"
+Content-Transfer-Encoding: 7bit
+
+<!doctype html>
+<html>
+  <body>
+    <h1>Attachment preview</h1>
+    <p>This benign HTML attachment helps test multi-card wrapping.</p>
+  </body>
+</html>
+
+--multi-attachment-boundary--

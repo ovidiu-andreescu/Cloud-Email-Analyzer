@@ -6,6 +6,7 @@ import os
 import time
 from typing import Any
 
+from boto3.dynamodb.conditions import Attr
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -13,12 +14,23 @@ from services_common.aws_helper import get_table
 
 
 security = HTTPBearer(auto_error=False)
-JWT_SECRET = os.getenv("JWT_SECRET", "local-demo-secret").encode("utf-8")
 
-DEMO_PASSWORDS = {
-    "admin@demo.local": ("admin123!demo", "USER#admin", "admin"),
-    "alice@demo.local": ("alice123!demo", "USER#alice", "user"),
-    "bob@demo.local": ("bob123!demo", "USER#bob", "user"),
+
+def _jwt_secret() -> bytes:
+    secret = os.getenv("JWT_SECRET")
+    stage = os.getenv("STAGE", os.getenv("ENV", "local-dev"))
+    if not secret and stage not in {"local-dev", "test"}:
+        raise RuntimeError("JWT_SECRET must be set outside local/test environments")
+    return (secret or "local-demo-secret").encode("utf-8")
+
+
+JWT_SECRET = _jwt_secret()
+PASSWORD_ALGORITHM = "pbkdf2_sha256"
+SENSITIVE_USER_FIELDS = {
+    "passwordAlgorithm",
+    "passwordHash",
+    "passwordIterations",
+    "passwordSalt",
 }
 
 
@@ -60,23 +72,71 @@ def verify_token(token: str) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="invalid_token")
 
 
-def authenticate(email: str, password: str) -> dict[str, Any]:
-    email = email.lower()
-    configured = DEMO_PASSWORDS.get(email)
-    if not configured or configured[0] != password:
-        raise HTTPException(status_code=401, detail="invalid_credentials")
-    user_id, role = configured[1], configured[2]
+def public_user(user: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in user.items() if key not in SENSITIVE_USER_FIELDS}
+
+
+def _find_user_by_email(email: str) -> dict[str, Any] | None:
     table = get_table("USERS_TABLE")
-    item = table.get_item(Key={"userId": user_id}).get("Item")
+    response = table.scan(FilterExpression=Attr("email").eq(email))
+    items = response.get("Items", [])
+    while response.get("LastEvaluatedKey"):
+        response = table.scan(
+            FilterExpression=Attr("email").eq(email),
+            ExclusiveStartKey=response["LastEvaluatedKey"],
+        )
+        items.extend(response.get("Items", []))
+
+    for item in items:
+        if item.get("email", "").lower() == email and item.get("status", "ACTIVE") == "ACTIVE":
+            return item
+    return None
+
+
+def _find_user_by_id(user_id: str) -> dict[str, Any] | None:
+    item = get_table("USERS_TABLE").get_item(Key={"userId": user_id}).get("Item")
+    if item and item.get("status", "ACTIVE") == "ACTIVE":
+        return item
+    return None
+
+
+def _password_hash(password: str, salt: str, iterations: int) -> str:
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        iterations,
+    )
+    return base64.b64encode(digest).decode("ascii")
+
+
+def authenticate(email: str, password: str) -> dict[str, Any]:
+    email = email.strip().lower()
+    item = _find_user_by_email(email)
     if not item:
-        item = {"userId": user_id, "email": email, "role": role, "tenantId": "demo", "displayName": email}
-    return item
+        raise HTTPException(status_code=401, detail="invalid_credentials")
+
+    algorithm = item.get("passwordAlgorithm")
+    expected_hash = item.get("passwordHash")
+    salt = item.get("passwordSalt")
+    iterations = int(item.get("passwordIterations", 0) or 0)
+    if algorithm != PASSWORD_ALGORITHM or not expected_hash or not salt or iterations <= 0:
+        raise HTTPException(status_code=401, detail="invalid_credentials")
+
+    actual_hash = _password_hash(password, salt, iterations)
+    if not hmac.compare_digest(expected_hash, actual_hash):
+        raise HTTPException(status_code=401, detail="invalid_credentials")
+    return public_user(item)
 
 
 def current_user(credentials: HTTPAuthorizationCredentials | None = Depends(security)) -> dict[str, Any]:
     if not credentials:
         raise HTTPException(status_code=401, detail="missing_token")
-    return verify_token(credentials.credentials)
+    payload = verify_token(credentials.credentials)
+    live_user = _find_user_by_id(payload.get("sub", ""))
+    if not live_user:
+        raise HTTPException(status_code=401, detail="user_inactive")
+    return public_user(live_user)
 
 
 def is_admin(user: dict[str, Any]) -> bool:

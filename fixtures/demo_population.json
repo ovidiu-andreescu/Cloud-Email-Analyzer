@@ -1,0 +1,74 @@
+{
+  "users": [
+    {
+      "userId": "USER#admin",
+      "email": "admin@demo.local",
+      "displayName": "Security Admin",
+      "role": "admin",
+      "password": "admin123!demo",
+      "passwordSalt": "demo-admin-salt"
+    },
+    {
+      "userId": "USER#alice",
+      "email": "alice@demo.local",
+      "displayName": "Alice",
+      "role": "user",
+      "password": "alice123!demo",
+      "passwordSalt": "demo-alice-salt"
+    },
+    {
+      "userId": "USER#bob",
+      "email": "bob@demo.local",
+      "displayName": "Bob",
+      "role": "user",
+      "password": "bob123!demo",
+      "passwordSalt": "demo-bob-salt"
+    }
+  ],
+  "mailboxes": [
+    {
+      "emailAddress": "alice@demo.local",
+      "tenantId": "demo",
+      "ownerUserIds": ["USER#alice"],
+      "mailboxType": "PERSONAL"
+    },
+    {
+      "emailAddress": "bob@demo.local",
+      "tenantId": "demo",
+      "ownerUserIds": ["USER#bob"],
+      "mailboxType": "PERSONAL"
+    },
+    {
+      "emailAddress": "security@demo.local",
+      "tenantId": "demo",
+      "ownerUserIds": ["USER#admin"],
+      "mailboxType": "QUARANTINE"
+    },
+    {
+      "emailAddress": "quarantine@demo.local",
+      "tenantId": "demo",
+      "ownerUserIds": ["USER#admin"],
+      "mailboxType": "QUARANTINE"
+    }
+  ],
+  "messages": [
+    {
+      "messageId": "demo-phishing",
+      "email": "fixtures/phishing.eml",
+      "to": "alice@demo.local",
+      "fromAddress": "attacker@example.com"
+    },
+    {
+      "messageId": "demo-eicar",
+      "email": "fixtures/eicar.eml",
+      "to": "bob@demo.local",
+      "fromAddress": "scanner-test@example.com"
+    },
+    {
+      "messageId": "demo-multiple-attachments",
+      "email": "fixtures/multiple_attachments.eml",
+      "to": "security@demo.local",
+      "fromAddress": "reports@example.com"
+    }
+  ]
+}

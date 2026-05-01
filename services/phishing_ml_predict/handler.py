@@ -1,14 +1,21 @@
 import os
 import re
 import json
+import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from services_common.aws_helper import get_table, s3_read_json
 from services_common.contracts import detail_from_event
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "model_artifacts", "core4_phishing_model.joblib")
-VECT_PATH = os.path.join(BASE_DIR, "model_artifacts", "core4_tfidf_vectorizer.joblib")
-MODEL_VERSION = os.getenv("MODEL_VERSION", "phish-model-local-demo-v1")
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "model_artifacts" / "core4_phishing_model.joblib"
+VECT_PATH = BASE_DIR / "model_artifacts" / "core4_tfidf_vectorizer.joblib"
+DEMO_FALLBACK_ENABLED = os.getenv("PHISHING_ML_ENABLE_DEMO_FALLBACK", "").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 MESSAGES = get_table("MESSAGES_TABLE")
 
 try:
@@ -18,19 +25,81 @@ except ImportError:
 
 model = None
 vectorizer = None
+model_load_error = None
+
+
+def _artifact_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for path in (MODEL_PATH, VECT_PATH):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+def _model_version() -> str:
+    configured = os.getenv("MODEL_VERSION")
+    if configured:
+        return configured
+    if MODEL_PATH.exists() and VECT_PATH.exists():
+        return f"core4-joblib-{_artifact_fingerprint()}"
+    return "demo-fallback-unversioned"
+
+
+MODEL_VERSION = _model_version()
 
 
 def load_models():
-    global model, vectorizer
-    if joblib is None or not Path(MODEL_PATH).exists() or not Path(VECT_PATH).exists():
+    global model, vectorizer, model_load_error
+    if joblib is None:
+        model_load_error = "joblib_not_installed"
         return False
-    if model is None:
-        print("Loading ML Model...")
-        model = joblib.load(MODEL_PATH)
-    if vectorizer is None:
-        print("Loading Vectorizer...")
-        vectorizer = joblib.load(VECT_PATH)
+    missing = [str(path) for path in (MODEL_PATH, VECT_PATH) if not path.exists()]
+    if missing:
+        model_load_error = f"missing_artifacts:{','.join(missing)}"
+        return False
+    try:
+        if model is None:
+            print(f"Loading ML model from {MODEL_PATH}")
+            model = joblib.load(MODEL_PATH)
+        if vectorizer is None:
+            print(f"Loading TF-IDF vectorizer from {VECT_PATH}")
+            vectorizer = joblib.load(VECT_PATH)
+    except Exception as exc:
+        model = None
+        vectorizer = None
+        model_load_error = f"{type(exc).__name__}: {exc}"
+        print(f"Unable to load packaged phishing ML artifacts: {model_load_error}")
+        return False
+    model_load_error = None
     return True
+
+
+def predict_with_model(cleaned_text: str):
+    vec_text = vectorizer.transform([cleaned_text])
+    prediction = model.predict(vec_text)[0]
+    if hasattr(model, "predict_proba"):
+        probability = float(model.predict_proba(vec_text).max())
+    elif hasattr(model, "decision_function"):
+        score = float(model.decision_function(vec_text)[0])
+        probability = 1.0 / (1.0 + pow(2.718281828459045, -score))
+    else:
+        probability = 1.0
+    verdict = "PHISHING" if int(prediction) == 1 else "LOW_RISK"
+    category = "credential_theft" if verdict == "PHISHING" else "ham"
+    return verdict, category, probability
+
+
+def predict_with_demo_fallback(cleaned_text: str):
+    demo_phrases = [
+        "urgent password reset",
+        "verify your account",
+        "login immediately",
+        "account suspended",
+    ]
+    matched_phrase = next((p for p in demo_phrases if p in cleaned_text), None)
+    if matched_phrase:
+        return "PHISHING", "credential_theft", 0.99, matched_phrase
+    return "LOW_RISK", "ham", 0.50, None
 
 
 def clean_text(t: str) -> str:
@@ -83,26 +152,21 @@ def lambda_handler(event, context):
     full_text = f"{subject} {email_body}"
     cleaned_text = clean_text(full_text)
 
-    demo_phrases = [
-        "urgent password reset",
-        "verify your account",
-        "login immediately",
-        "account suspended",
-    ]
-    if any(p in cleaned_text for p in demo_phrases):
-        verdict = "PHISHING"
-        category = "credential_theft"
-        probability = 0.99
-    elif load_models():
-        vec_text = vectorizer.transform([cleaned_text])
-        prediction = model.predict(vec_text)[0]
-        probability = float(model.predict_proba(vec_text).max())
-        verdict = "PHISHING" if int(prediction) == 1 else "LOW_RISK"
-        category = "credential_theft" if verdict == "PHISHING" else "ham"
+    fallback_reason = None
+    demo_match = None
+    if load_models():
+        verdict, category, probability = predict_with_model(cleaned_text)
+        model_source = "packaged_joblib"
+    elif DEMO_FALLBACK_ENABLED:
+        verdict, category, probability, demo_match = predict_with_demo_fallback(cleaned_text)
+        model_source = "demo_fallback"
+        fallback_reason = model_load_error or "demo_fallback_enabled"
     else:
-        verdict = "LOW_RISK"
-        category = "ham"
-        probability = 0.72
+        verdict = "ERROR"
+        category = "model_unavailable"
+        probability = 0.0
+        model_source = "unavailable"
+        fallback_reason = model_load_error or "model_unavailable"
 
     result = {
         "messageId": detail.get("messageId"),
@@ -111,22 +175,30 @@ def lambda_handler(event, context):
             "category": category,
             "confidence": float(probability),
             "modelVersion": MODEL_VERSION,
+            "modelSource": model_source,
             "featuresVersion": "features-v1",
         },
         "status": "success",
     }
+    if fallback_reason:
+        result["ml"]["fallbackReason"] = fallback_reason
+    if demo_match:
+        result["ml"]["demoMatchedPhrase"] = demo_match
 
     if detail.get("messageId"):
+        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         MESSAGES.update_item(
             Key={"messageId": detail["messageId"]},
             UpdateExpression="SET mlVerdict = :v, mlCategory = :c, mlConfidence = :p, "
-                             "mlModelVersion = :m, #st = :st",
+                             "mlModelVersion = :m, mlModelSource = :src, mlScannedAt = :now, #st = :st",
             ExpressionAttributeNames={"#st": "status"},
             ExpressionAttributeValues={
                 ":v": verdict,
                 ":c": category,
                 ":p": str(float(probability)),
                 ":m": MODEL_VERSION,
+                ":src": model_source,
+                ":now": now,
                 ":st": "ML_SCANNED",
             },
         )

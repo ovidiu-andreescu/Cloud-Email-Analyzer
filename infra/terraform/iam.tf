@@ -136,7 +136,8 @@ data "aws_iam_policy_document" "pipeline_lambda" {
       local.users_table_arn,
       local.mailboxes_table_arn,
       local.inbox_table_arn,
-      local.attachments_table_arn
+      local.attachments_table_arn,
+      local.audit_table_arn
     ]
   }
 
@@ -212,18 +213,20 @@ data "aws_iam_policy_document" "api_lambda_policy" {
       local.users_table_arn,
       local.mailboxes_table_arn,
       local.inbox_table_arn,
-      local.attachments_table_arn
+      local.attachments_table_arn,
+      local.audit_table_arn
     ]
   }
 
   statement {
-    actions = ["dynamodb:GetItem", "dynamodb:Scan", "dynamodb:Query"]
+    actions = ["dynamodb:GetItem", "dynamodb:Scan", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:UpdateItem"]
     resources = [
       local.messages_table_arn,
       local.users_table_arn,
       local.mailboxes_table_arn,
       local.inbox_table_arn,
-      local.attachments_table_arn
+      local.attachments_table_arn,
+      local.audit_table_arn
     ]
   }
 

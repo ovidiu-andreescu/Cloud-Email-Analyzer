@@ -1,25 +1,27 @@
+import type { LucideIcon } from "lucide-react"
 import React from "react"
 
 export default function StatCard(props: {
   title: string
   value: string | number
-  deltaPct?: number
-  icon?: string
+  helper?: string
+  icon?: LucideIcon
 }) {
-  const { title, value, deltaPct, icon } = props
-  const pos = (deltaPct ?? 0) >= 0
+  const Icon = props.icon
   return (
-    <div className="card p-6 flex-1 min-w-[220px]">
+    <div className="card p-5">
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-slate-100 grid place-items-center text-2xl">{icon ?? "📈"}</div>
-        <div className="text-slate-500 font-medium">{title}</div>
-      </div>
-      <div className="mt-3 text-3xl font-bold">{value}</div>
-      {deltaPct !== undefined && (
-        <div className={"mt-1 text-sm " + (pos ? "text-green-600" : "text-red-600")}>
-          {pos ? "↑" : "↓"} {Math.abs(deltaPct * 100).toFixed(0)}% {pos ? "this month" : "this week"}
+        {Icon && (
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-600">
+            <Icon size={20} aria-hidden="true" />
+          </div>
+        )}
+        <div>
+          <div className="text-sm font-medium text-slate-500">{props.title}</div>
+          <div className="text-3xl font-bold text-slate-800">{props.value}</div>
         </div>
-      )}
+      </div>
+      {props.helper && <div className="mt-3 text-sm text-slate-500">{props.helper}</div>}
     </div>
   )
 }

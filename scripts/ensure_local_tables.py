@@ -105,6 +105,18 @@ def main():
             {"AttributeName": "attachmentId", "KeyType": "RANGE"},
         ],
     })
+    create_table({
+        "TableName": f"{PREFIX}-audit-log",
+        "BillingMode": "PAY_PER_REQUEST",
+        "AttributeDefinitions": [
+            {"AttributeName": "tenantId", "AttributeType": "S"},
+            {"AttributeName": "sortKey", "AttributeType": "S"},
+        ],
+        "KeySchema": [
+            {"AttributeName": "tenantId", "KeyType": "HASH"},
+            {"AttributeName": "sortKey", "KeyType": "RANGE"},
+        ],
+    })
 
 
 if __name__ == "__main__":

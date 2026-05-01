@@ -1,25 +1,29 @@
 import React from "react"
 
-export default function Badge({kind, children}: {kind: "Safe"|"Unsafe"|"Suspicious", children?: React.ReactNode}) {
+type Tone = "safe" | "unsafe" | "suspicious" | "neutral"
 
-  const map = {
-    Safe: "badge-safe",
-    Unsafe: "badge-unsafe",
-    Suspicious: "badge-suspicious"
-  } as const
+const toneClass: Record<Tone, string> = {
+  safe: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+  unsafe: "bg-red-50 text-red-700 ring-red-200",
+  suspicious: "bg-amber-50 text-amber-800 ring-amber-200",
+  neutral: "bg-slate-100 text-slate-600 ring-slate-200",
+}
 
-  const tooltipMap = {
-    Safe: "This email is safe. ",
-    Unsafe: "This email has been classified as unsafe and potentially malicious.",
-    Suspicious: "This email has suspicious content. Review needed."
-  }
-
+export default function Badge({
+  tone = "neutral",
+  children,
+  title,
+}: {
+  tone?: Tone
+  children: React.ReactNode
+  title?: string
+}) {
   return (
     <span
-      className={"badge " + map[kind] + " cursor-help"}
-      title={tooltipMap[kind]}
+      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${toneClass[tone]}`}
+      title={title}
     >
-      {children ?? kind}
+      {children}
     </span>
   )
 }

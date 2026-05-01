@@ -10,6 +10,7 @@ import os
 import pwd
 import subprocess
 import shutil
+from datetime import datetime, timezone
 from urllib.parse import unquote_plus
 from services_common.aws_helper import get_s3, get_table
 from services_common.contracts import detail_from_event
@@ -33,6 +34,9 @@ except ImportError:
             return decorator
 
     class Metrics:
+        def __init__(self, *args, **kwargs):
+            pass
+
         def log_metrics(self, capture_cold_start_metric=True):
             def decorator(func):
                 return func
@@ -42,7 +46,7 @@ except ImportError:
             return None
 
 logger = Logger()
-metrics = Metrics()
+metrics = Metrics(namespace=os.getenv("POWERTOOLS_METRICS_NAMESPACE", "CloudEmailAnalyzer"), service="attachment-scan")
 
 s3_resource = boto3.resource("s3")
 s3_client = boto3.client("s3")
@@ -135,11 +139,10 @@ def get_event_params(event):
 
 
 def _scan_payload(path, payload):
-    if EICAR_MARKER in payload:
-        return "UNSAFE", "Eicar-Test-Signature"
+    database_dir = os.getenv("CLAMAV_DB_DIR", "/var/lib/clamav")
     try:
         result = subprocess.run(
-            ["clamscan", "--stdout", path],
+            ["clamscan", "--stdout", f"--database={database_dir}", path],
             stderr=subprocess.STDOUT,
             stdout=subprocess.PIPE,
             timeout=int(os.getenv("CLAMAV_TIMEOUT_SECONDS", "30")),
@@ -148,13 +151,23 @@ def _scan_payload(path, payload):
         if result.returncode == 0:
             return "SAFE", ""
         if result.returncode == 1:
-            return "UNSAFE", output[-500:]
+            return "UNSAFE", _extract_clamav_signature(output)
         return "SCAN_ERROR", output[-500:]
     except FileNotFoundError:
-        # Local tests and lightweight demos can still prove the scanner contract.
-        return "SAFE", "clamscan-not-installed"
+        if os.getenv("CLAMAV_EICAR_FALLBACK", "false").lower() == "true" and EICAR_MARKER in payload:
+            return "UNSAFE", "Eicar-Test-Signature"
+        return "SCAN_ERROR", "clamscan-not-installed"
     except subprocess.TimeoutExpired:
         return "TIMEOUT", "clamscan-timeout"
+
+
+def _extract_clamav_signature(output):
+    for line in reversed(output.splitlines()):
+        if " FOUND" not in line:
+            continue
+        signature = line.rsplit(":", 1)[-1].replace("FOUND", "").strip()
+        return signature or line[-500:]
+    return output[-500:]
 
 
 def _handle_attachment_contract(event):
@@ -165,6 +178,7 @@ def _handle_attachment_contract(event):
     messages = get_table("MESSAGES_TABLE")
     s3 = get_s3()
     results = []
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     for att in attachments:
         payload = s3.get_object(Bucket=att["s3Bucket"], Key=att["s3Key"])["Body"].read()
@@ -181,21 +195,22 @@ def _handle_attachment_contract(event):
         status = "SCANNED" if verdict in {"SAFE", "UNSAFE"} else verdict
         table.update_item(
             Key={"messageId": message_id, "attachmentId": att["attachmentId"]},
-            UpdateExpression="SET sha256 = :sha, scanStatus = :ss, scanVerdict = :sv, clamavSignature = :sig",
+            UpdateExpression="SET sha256 = :sha, scanStatus = :ss, scanVerdict = :sv, clamavSignature = :sig, scannedAt = :now",
             ExpressionAttributeValues={
                 ":sha": sha256,
                 ":ss": status,
                 ":sv": verdict,
                 ":sig": signature,
+                ":now": now,
             },
         )
         results.append({**att, "sha256": sha256, "scanStatus": status, "scanVerdict": verdict})
 
     messages.update_item(
         Key={"messageId": message_id},
-        UpdateExpression="SET #st = :st",
+        UpdateExpression="SET #st = :st, attachmentsScannedAt = :now",
         ExpressionAttributeNames={"#st": "status"},
-        ExpressionAttributeValues={":st": "ATTACHMENTS_SCANNED"},
+        ExpressionAttributeValues={":st": "ATTACHMENTS_SCANNED", ":now": now},
     )
     detail["attachmentResults"] = results
     return detail
@@ -390,6 +405,8 @@ def scan(input_bucket, input_key, download_path, definitions_path, tmp_path):
         }
     except subprocess.CalledProcessError as e:
         report_failure(input_bucket, input_key, download_path, str(e.stderr))
+    except FileNotFoundError:
+        report_failure(input_bucket, input_key, download_path, "clamscan-not-installed")
     except ClamAVException as e:
         report_failure(input_bucket, input_key, download_path, e.message)
 

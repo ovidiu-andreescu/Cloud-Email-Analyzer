@@ -1,6 +1,6 @@
 services:
   localstack:
-    image: ${LOCALSTACK_IMAGE:-localstack/localstack:3.8.1}
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack-pro:2026.3.0}
     container_name: localstack
     user: "root"
     ports:
@@ -67,6 +67,7 @@ services:
       - MAILBOXES_TABLE=cloud-email-analyzer-local-dev-mailboxes
       - INBOX_TABLE=cloud-email-analyzer-local-dev-inbox-messages
       - ATTACHMENTS_TABLE=cloud-email-analyzer-local-dev-attachments
+      - AUDIT_TABLE=cloud-email-analyzer-local-dev-audit-log
       - JWT_SECRET=local-demo-secret
       - PYTHONPATH=/var/task/src:/tmp/common-src
     ports:

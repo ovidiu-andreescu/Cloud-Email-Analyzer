@@ -3,8 +3,10 @@ COMPOSE_INTEGRATION = docker compose -f docker/docker-compose.localstack.yaml
 LOCAL_ENDPOINT ?= http://localhost:4566
 AWS_REGION ?= eu-central-1
 LOCAL_PREFIX ?= cloud-email-analyzer-local-dev
+LOCAL_LAMBDA_MODE ?= image
+LOCALSTACK_IMAGE ?= $(if $(filter image,$(LOCAL_LAMBDA_MODE)),localstack/localstack-pro:2026.3.0,localstack/localstack:3.8.1)
 
-.PHONY: help build-test-env test test-unit test-integration up down logs clean init-tf local-up local-build local-deploy local-create-users local-seed-benign local-seed-phishing local-seed-eicar local-api local-ui local-test local-down codex-start codex-stop codex-status
+.PHONY: help build-test-env test test-unit test-integration up down logs clean init-tf local-up local-build local-build-pro local-build-free local-deploy local-create-users local-seed-benign local-seed-phishing local-seed-eicar local-seed-multiple local-api local-ui local-test local-down codex-start codex-populate codex-stop codex-status
 
 .DEFAULT_GOAL := help
 
@@ -26,13 +28,19 @@ clean: ## Stop services and remove all data (volumes, orphans)
 	$(COMPOSE_INTEGRATION) down -v --remove-orphans
 
 local-up: ## Start LocalStack for the local demo
-	$(COMPOSE_INTEGRATION) up -d localstack
+	LOCALSTACK_IMAGE=$(LOCALSTACK_IMAGE) $(COMPOSE_INTEGRATION) up -d localstack
 
-local-build: ## Package local Lambda ZIPs for LocalStack
-	LOCALSTACK_ENDPOINT=$(LOCAL_ENDPOINT) AWS_REGION=$(AWS_REGION) ./scripts/local_build_push.sh
+local-build: ## Build local Lambda artifacts; defaults to LocalStack Pro image mode
+	LOCAL_LAMBDA_MODE=$(LOCAL_LAMBDA_MODE) LOCALSTACK_ENDPOINT=$(LOCAL_ENDPOINT) AWS_REGION=$(AWS_REGION) LOCAL_PREFIX=$(LOCAL_PREFIX) ./scripts/local_build_push.sh
+
+local-build-pro: ## Build and push LocalStack Pro Lambda images
+	$(MAKE) local-build LOCAL_LAMBDA_MODE=image
+
+local-build-free: ## Package ZIP Lambdas for the future community/free mode
+	$(MAKE) local-build LOCAL_LAMBDA_MODE=zip
 
 local-deploy: ## Apply LocalStack Terraform and ensure local tables
-	LOCALSTACK_ENDPOINT=$(LOCAL_ENDPOINT) AWS_REGION=$(AWS_REGION) ./scripts/local_deploy.sh
+	LOCAL_LAMBDA_MODE=$(LOCAL_LAMBDA_MODE) LOCALSTACK_ENDPOINT=$(LOCAL_ENDPOINT) AWS_REGION=$(AWS_REGION) LOCAL_PREFIX=$(LOCAL_PREFIX) ./scripts/local_deploy.sh
 
 local-create-users: ## Seed demo users and mailbox mappings
 	AWS_ENDPOINT_URL=$(LOCAL_ENDPOINT) AWS_DEFAULT_REGION=$(AWS_REGION) LOCAL_PREFIX=$(LOCAL_PREFIX) ./scripts/create_demo_users.py
@@ -45,6 +53,9 @@ local-seed-phishing: ## Seed a phishing-like email to Alice
 
 local-seed-eicar: ## Seed an EICAR attachment email to Bob
 	PYTHONPATH=libs/common/src AWS_ENDPOINT_URL=$(LOCAL_ENDPOINT) AWS_DEFAULT_REGION=$(AWS_REGION) LOCAL_PREFIX=$(LOCAL_PREFIX) ./scripts/local_seed_email.py --email fixtures/eicar.eml --to bob@demo.local --from-address scanner-test@example.com
+
+local-seed-multiple: ## Seed a safe multi-attachment email to the admin mailbox
+	PYTHONPATH=libs/common/src AWS_ENDPOINT_URL=$(LOCAL_ENDPOINT) AWS_DEFAULT_REGION=$(AWS_REGION) LOCAL_PREFIX=$(LOCAL_PREFIX) ./scripts/local_seed_email.py --email fixtures/multiple_attachments.eml --to security@demo.local --from-address reports@example.com --message-id demo-multiple-attachments
 
 local-api: ## Run the FastAPI dashboard API locally against LocalStack
 	$(COMPOSE_INTEGRATION) up --build api
@@ -63,7 +74,10 @@ local-down: ## Stop and clean the local demo environment
 codex-start: ## Start the complete LocalStack demo stack
 	LC_ALL=C ./scripts/codex_local_demo.sh start
 
-codex-stop: ## Stop the complete LocalStack demo stack without deleting volumes
+codex-populate: ## Explicitly create demo users and seed demo messages
+	LC_ALL=C ./scripts/codex_local_demo.sh populate
+
+codex-stop: ## Stop the complete LocalStack demo stack and clear local data
 	LC_ALL=C ./scripts/codex_local_demo.sh stop
 
 codex-status: ## Show LocalStack demo container status

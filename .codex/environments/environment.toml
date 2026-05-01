@@ -11,6 +11,11 @@ icon = "run"
 command = "make codex-start"
 
 [[actions]]
+name = "Populate Demo"
+icon = "database"
+command = "make codex-populate"
+
+[[actions]]
 name = "Stop"
 icon = "tool"
 command = "make codex-stop"
