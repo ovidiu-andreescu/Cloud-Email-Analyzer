@@ -1,5 +1,5 @@
 {
-  "Comment": "Email pipeline: init ledger, parse, check for attachments, then scan.",
+  "Comment": "Email pipeline: init ledger, resolve recipients, parse, classify, scan, aggregate.",
   "StartAt": "InitLedger",
   "States": {
     "InitLedger": {
@@ -16,12 +16,12 @@
           "MaxAttempts": 3
         }
       ],
-      "Next": "ParseEmail"
+      "Next": "ResolveRecipients"
     },
-    "ParseEmail": {
+    "ResolveRecipients": {
       "Type": "Task",
-      "Resource": "${parse_email_lambda_arn}",
-      "ResultPath": "$.parse_result",
+      "Resource": "${resolve_recipients_lambda_arn}",
+      "ResultPath": "$",
       "Retry": [
         {
           "ErrorEquals": [
@@ -32,25 +32,60 @@
           "MaxAttempts": 3
         }
       ],
-      "Next": "HasAttachments"
+      "Next": "ParseEmail"
     },
-    "HasAttachments": {
-      "Type": "Choice",
-      "Choices": [
+    "ParseEmail": {
+      "Type": "Task",
+      "Resource": "${parse_email_lambda_arn}",
+      "ResultPath": "$",
+      "Retry": [
         {
-          "Comment": "Check if the parser found attachments.",
-          "Variable": "$.parse_result.maybeHasAttachments",
-          "BooleanEquals": true,
-          "Next": "RunVirusScanner"
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
         }
       ],
-      "Default": "ProcessingComplete"
+      "Next": "PhishingML"
     },
-    "RunVirusScanner": {
-      "Comment": "This is the new state for your scanner Lambda.",
+    "PhishingML": {
       "Type": "Task",
-      "Resource": "${virus_scan_lambda_arn}",
-      "ResultPath": "$.scanner_result",
+      "Resource": "${phishing_ml_lambda_arn}",
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
+        }
+      ],
+      "Next": "AttachmentScan"
+    },
+    "AttachmentScan": {
+      "Type": "Task",
+      "Resource": "${attachment_scan_lambda_arn}",
+      "ResultPath": "$",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "IntervalSeconds": 2,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
+        }
+      ],
+      "Next": "AggregateVerdicts"
+    },
+    "AggregateVerdicts": {
+      "Type": "Task",
+      "Resource": "${aggregate_verdicts_lambda_arn}",
+      "ResultPath": "$",
       "Retry": [
         {
           "ErrorEquals": [

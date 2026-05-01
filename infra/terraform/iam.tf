@@ -46,19 +46,19 @@ resource "aws_iam_role" "init_ledger" {
 data "aws_iam_policy_document" "init_ledger" {
   statement {
     actions   = ["dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.ledger.arn]
+    resources = [local.messages_table_arn]
   }
 
   statement {
     actions   = ["dynamodb:PutItem", "dynamodb:DescribeTable"]
-    resources = [aws_dynamodb_table.ledger.arn]
+    resources = [local.messages_table_arn]
   }
   statement {
     actions   = ["s3:GetObject"]
     resources = ["${aws_s3_bucket.inbound.arn}/${local.inbound_prefix}*"]
   }
   statement {
-    actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
     resources = ["*"]
   }
 }
@@ -82,7 +82,7 @@ resource "aws_iam_role" "parse_email" {
 data "aws_iam_policy_document" "parse_email" {
   statement {
     actions   = ["dynamodb:UpdateItem"]
-    resources = [aws_dynamodb_table.ledger.arn]
+    resources = [local.messages_table_arn]
   }
 
   statement {
@@ -94,13 +94,13 @@ data "aws_iam_policy_document" "parse_email" {
     resources = ["${aws_s3_bucket.inbound.arn}/${local.parsed_prefix}*"]
   }
 
-    statement {
+  statement {
     actions   = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.inbound.arn}/${local.attach_prefix}*"]
   }
 
   statement {
-    actions   = ["logs:CreateLogGroup","logs:CreateLogStream","logs:PutLogEvents"]
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
     resources = ["*"]
   }
 }
@@ -113,6 +113,57 @@ resource "aws_iam_policy" "parse_email" {
 resource "aws_iam_role_policy_attachment" "parse_email" {
   role       = aws_iam_role.parse_email.name
   policy_arn = aws_iam_policy.parse_email.arn
+}
+
+resource "aws_iam_role" "pipeline_lambda" {
+  name               = "${local.base_prefix}-pipeline-lambda-role"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+  tags               = local.tags
+}
+
+data "aws_iam_policy_document" "pipeline_lambda" {
+  statement {
+    actions = [
+      "dynamodb:PutItem",
+      "dynamodb:GetItem",
+      "dynamodb:UpdateItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:DescribeTable"
+    ]
+    resources = [
+      local.messages_table_arn,
+      local.users_table_arn,
+      local.mailboxes_table_arn,
+      local.inbox_table_arn,
+      local.attachments_table_arn
+    ]
+  }
+
+  statement {
+    actions = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+    resources = [
+      aws_s3_bucket.inbound.arn,
+      "${aws_s3_bucket.inbound.arn}/*",
+      aws_s3_bucket.artifacts.arn,
+      "${aws_s3_bucket.artifacts.arn}/*"
+    ]
+  }
+
+  statement {
+    actions   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "pipeline_lambda" {
+  name   = "${local.base_prefix}-pipeline-lambda-policy"
+  policy = data.aws_iam_policy_document.pipeline_lambda.json
+}
+
+resource "aws_iam_role_policy_attachment" "pipeline_lambda" {
+  role       = aws_iam_role.pipeline_lambda.name
+  policy_arn = aws_iam_policy.pipeline_lambda.arn
 }
 
 resource "aws_iam_role" "eventbridge_sfn_role" {
@@ -134,7 +185,7 @@ data "aws_iam_policy_document" "allow_start_execution" {
     sid       = "AllowStartExecution"
     effect    = "Allow"
     actions   = ["states:StartExecution"]
-    resources = [aws_sfn_state_machine.email_pipeline.arn]
+    resources = [local.state_machine_arn]
   }
 }
 
@@ -157,24 +208,32 @@ data "aws_iam_policy_document" "api_lambda_policy" {
   statement {
     actions = ["dynamodb:DescribeTable"]
     resources = [
-      aws_dynamodb_table.ledger.arn,
-      aws_dynamodb_table.user.arn
+      local.messages_table_arn,
+      local.users_table_arn,
+      local.mailboxes_table_arn,
+      local.inbox_table_arn,
+      local.attachments_table_arn
     ]
   }
 
   statement {
-    actions = ["dynamodb:Scan"]
+    actions = ["dynamodb:GetItem", "dynamodb:Scan", "dynamodb:Query"]
     resources = [
-      aws_dynamodb_table.ledger.arn,
-      aws_dynamodb_table.user.arn
+      local.messages_table_arn,
+      local.users_table_arn,
+      local.mailboxes_table_arn,
+      local.inbox_table_arn,
+      local.attachments_table_arn
     ]
   }
 
   statement {
     actions = ["dynamodb:Query"]
     resources = [
-      aws_dynamodb_table.user.arn, # Not strictly needed, but good practice
-      "${aws_dynamodb_table.user.arn}/index/by-activity-gsi"
+      local.users_table_arn, # Not strictly needed, but good practice
+      "${local.users_table_arn}/index/by-activity-gsi",
+      local.inbox_table_arn,
+      local.attachments_table_arn
     ]
   }
 }

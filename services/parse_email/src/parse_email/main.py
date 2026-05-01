@@ -1,13 +1,17 @@
 import os
-import email
 import mimetypes
+import hashlib
 from urllib.parse import quote
 from email.message import EmailMessage
+from email import policy
+from email.parser import BytesParser
 
-from services_common.mail_helper import mail_extract
 from services_common.aws_helper import s3_write , s3_write_bytes, get_table
+from services_common.aws_helper import get_s3
+from services_common.contracts import attachment_id, detail_from_event, ensure_artifacts
 
-TABLE = get_table("LEDGER_TABLE")
+MESSAGES = get_table("MESSAGES_TABLE")
+ATTACHMENTS = get_table("ATTACHMENTS_TABLE")
 
 def out_prefix():
     return os.environ.get("OUT_PREFIX", "parsed/")
@@ -18,13 +22,14 @@ def get_att():
 
 
 def handler(event, context):
-    if TABLE is None:
-        raise Exception("Failed to initialize DynamoDB table. Check LEDGER_TABLE env var.")
-
-    result = mail_extract(event)
-    message_id = result["messageId"]
-    msg = result["msg"]
-    bucket = result["bucket"]
+    detail = ensure_artifacts(detail_from_event(event))
+    message_id = detail["messageId"]
+    raw = detail["raw"]
+    bucket = raw["bucket"]
+    artifact_bucket = os.environ.get("ARTIFACTS_BUCKET", bucket)
+    key = raw["key"]
+    raw_bytes = get_s3().get_object(Bucket=bucket, Key=key)["Body"].read()
+    msg = BytesParser(policy=policy.default).parsebytes(raw_bytes)
 
     assert isinstance(msg, EmailMessage)
 
@@ -33,8 +38,8 @@ def handler(event, context):
     from_ = msg.get("from", "")
     to = msg.get("to", "")
 
-    text_body = None
-    html_body = None
+    text_body = ""
+    html_body = ""
     saved_attachments = []
 
     if msg.is_multipart():
@@ -48,79 +53,91 @@ def handler(event, context):
                     ext = mimetypes.guess_extension(ctype) or ".dat"
                     fname = f"part-{part.get_cid() or 'unknown'}{ext}"
 
-                data = part.get_payload(decode=True)
-                if data:
-                    out_key = f"{get_att()}{message_id}/{quote(fname)}"
+                data = part.get_payload(decode=True) or b""
+                att_id = attachment_id(len(saved_attachments), fname, data)
+                out_key = f"{get_att()}{message_id}/{att_id}"
 
-                    try:
-                        s3_write_bytes(
-                            bucket,
-                            out_key,
-                            data,
-                            content_type=ctype,
-                            metadata={"messageId": message_id}
-                        )
-                    except Exception as e:
-                        print(f"Error uploading attachment: {e}")
-                        continue
+                try:
+                    s3_write_bytes(
+                        artifact_bucket,
+                        out_key,
+                        data,
+                        content_type=ctype,
+                        metadata={"messageId": message_id, "attachmentId": att_id}
+                    )
+                except Exception as e:
+                    print(f"Error uploading attachment: {e}")
+                    continue
 
-                    saved_attachments.append({"bucket": bucket, "key": out_key, "filename": fname, "size": len(data)})
+                sha256 = hashlib.sha256(data).hexdigest()
+                att = {
+                    "messageId": message_id,
+                    "attachmentId": att_id,
+                    "filename": fname,
+                    "contentType": ctype,
+                    "sizeBytes": len(data),
+                    "sha256": sha256,
+                    "s3Bucket": artifact_bucket,
+                    "s3Key": out_key,
+                    "scanStatus": "PENDING",
+                    "scanVerdict": "PENDING",
+                }
+                ATTACHMENTS.put_item(Item=att)
+                saved_attachments.append(att)
 
-            elif ctype == "text/plain" and text_body is None:
-                text_body = part.get_payload(decode=True).decode(part.get_content_charset("utf-8"))
-            elif ctype == "text/html" and html_body is None:
-                html_body = part.get_payload(decode=True).decode(part.get_content_charset("utf-8"))
+            elif ctype == "text/plain" and not text_body:
+                text_body = (part.get_payload(decode=True) or b"").decode(part.get_content_charset("utf-8"), "replace")
+            elif ctype == "text/html" and not html_body:
+                html_body = (part.get_payload(decode=True) or b"").decode(part.get_content_charset("utf-8"), "replace")
 
     else:
         ctype = msg.get_content_type()
         if ctype == "text/plain":
-            text_body = msg.get_payload(decode=True).decode(msg.get_content_charset("utf-8"))
+            text_body = (msg.get_payload(decode=True) or b"").decode(msg.get_content_charset("utf-8"), "replace")
         elif ctype == "text/html":
-            html_body = msg.get_payload(decode=True).decode(msg.get_content_charset("utf-8"))
+            html_body = (msg.get_payload(decode=True) or b"").decode(msg.get_content_charset("utf-8"), "replace")
 
     summary = {
         "messageId": message_id,
         "subject": subject,
         "from": from_,
         "to": to,
-        "hasHtml": html_body is not None,
+        "hasHtml": bool(html_body),
         "textPreview": (text_body or "")[:1000]
     }
-    out_key = f"{out_prefix()}{message_id}.json"
+    out_key = f"{out_prefix()}{message_id}/body.json"
 
-    s3_write(bucket, out_key, {
+    s3_write(artifact_bucket, out_key, {
         "headers": headers,
-        "summary": summary
+        "summary": summary,
+        "text": text_body,
+        "html": html_body,
+        "attachments": saved_attachments,
     }, metadata={"messageId": message_id})
 
     has_attachments = len(saved_attachments) > 0
 
-    try:
-        TABLE.update_item(
-            Key={
-                "messageId": message_id
-            },
-            UpdateExpression="SET subject = :sub, sender = :frm, recipient = :recip, "
-                             "hasAttachments = :ha, s3KeyParsed = :skp, "
-                             "verdict = :v",
-            ConditionExpression="sk = :sk_meta",
-            ExpressionAttributeValues={
-                ":sub": subject,
-                ":frm": from_,
-                ":recip": to,
-                ":ha": has_attachments,
-                ":skp": out_key,
-                ":v": "PROCESSED",
-                ":sk_meta": "meta"
-            }
-        )
-    except Exception as e:
-        print(f"WARNING: Failed to update DynamoDB 'meta' item for {message_id}. {e}")
+    MESSAGES.update_item(
+        Key={"messageId": message_id},
+        UpdateExpression="SET subject = :sub, #from = :frm, mimeTo = :recip, hasAttachments = :ha, "
+                         "attachmentCount = :ac, parsedBucket = :pb, parsedKey = :pk, #st = :st",
+        ExpressionAttributeNames={"#st": "status", "#from": "from"},
+        ExpressionAttributeValues={
+            ":sub": subject,
+            ":frm": from_,
+            ":recip": to,
+            ":ha": has_attachments,
+            ":ac": len(saved_attachments),
+            ":pb": artifact_bucket,
+            ":pk": out_key,
+            ":st": "PARSED",
+        }
+    )
 
-    event.setdefault("artifacts", {})
-    event["artifacts"]["parsed"] = {"bucket": bucket, "key": out_key}
-    event["artifacts"]["attachments"] = saved_attachments
-    event["mail"] = {"subject": subject, "from": from_, "to": to}
-    event["maybeHasAttachments"] = has_attachments
+    detail["artifacts"]["parsed"] = {"bucket": artifact_bucket, "key": out_key}
+    detail["artifacts"]["attachments"] = saved_attachments
+    detail["artifacts"]["attachmentsPrefix"] = f"{get_att()}{message_id}/"
+    detail["mail"] = {"subject": subject, "from": from_, "to": to}
+    detail["hasAttachments"] = has_attachments
 
-    return event
+    return detail

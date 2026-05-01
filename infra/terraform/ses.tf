@@ -1,5 +1,5 @@
 data "aws_route53_zone" "this" {
-  count = local.enable_ses ? 1 : 0
+  count        = local.enable_ses ? 1 : 0
   name         = var.domain_name
   private_zone = false
 }
@@ -42,12 +42,12 @@ resource "aws_route53_record" "mx_inbound" {
 }
 
 resource "aws_ses_receipt_rule_set" "main" {
-  count = local.enable_ses ? 1 : 0
+  count         = local.enable_ses ? 1 : 0
   rule_set_name = "${local.base_prefix}-rules"
 }
 
 resource "aws_ses_active_receipt_rule_set" "active" {
-  count = local.enable_ses ? 1 : 0
+  count         = local.enable_ses ? 1 : 0
   rule_set_name = aws_ses_receipt_rule_set.main[0].rule_set_name
 }
 
@@ -61,9 +61,9 @@ resource "aws_ses_receipt_rule" "inbound" {
   tls_policy    = "Optional"
 
   s3_action {
-    bucket_name = aws_s3_bucket.inbound.bucket
+    bucket_name       = aws_s3_bucket.inbound.bucket
     object_key_prefix = local.inbound_prefix
-    kms_key_arn = var.kms_key_arn
-    position = 1
+    kms_key_arn       = var.kms_key_arn
+    position          = 1
   }
 }

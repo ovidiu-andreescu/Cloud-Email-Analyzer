@@ -68,6 +68,10 @@ RUN pip3 install --no-cache-dir \
         aws-lambda-powertools \
         awslambdaric
 
+COPY libs/common/pyproject.toml /tmp/common/pyproject.toml
+COPY libs/common/src /tmp/common/src
+RUN pip3 install --no-cache-dir /tmp/common && rm -rf /tmp/common
+
 COPY clamd.conf /etc/clamd.conf
 RUN cp /etc/clamd.conf /tmp/clamd.conf
 

@@ -1,0 +1,12 @@
+From: friend@example.com
+To: alice@demo.local
+Subject: Weekly status update
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Hello Alice,
+
+Here is the weekly project status update. Everything looks normal.
+
+Regards,
+Example Friend

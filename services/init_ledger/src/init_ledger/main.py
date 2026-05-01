@@ -1,53 +1,46 @@
-import os, time, boto3
-from datetime import datetime, timezone
-
 from botocore.exceptions import ClientError
 from services_common.aws_helper import get_table
+from services_common.contracts import detail_from_event
 
-table_name = "LEDGER_TABLE"
+table_name = "MESSAGES_TABLE"
 TABLE = get_table(table_name)
-GSI_PK_VALUE = "EMAILS"
 
 def handler(event, context):
-    try:
-        key = event["detail"]["object"]["key"]
-    except KeyError:
-        print("Failed to find S3 key in event. Check payload.")
-        print("EVENT: ", event)
-        raise
-
-    msg_id = key.rsplit("/", 1)[-1].removesuffix(".eml")
-
-    now_iso = datetime.now(timezone.utc).isoformat()
+    detail = detail_from_event(event)
+    msg_id = detail["messageId"]
+    raw = detail["raw"]
+    headers = detail.get("headers", {})
+    envelope = detail.get("envelope", {})
 
     item = {
         "messageId": msg_id,
-        "sk": "meta",
-        "gsi_pk": GSI_PK_VALUE,
-        "s3KeyRaw": key,
-        "receivedAt": now_iso,
-        "verdict": "PROCESSING"
+        "tenantId": detail.get("tenantId", "demo"),
+        "receivedAt": detail["receivedAt"],
+        "source": detail.get("source", "unknown"),
+        "from": envelope.get("mailFrom") or headers.get("from", ""),
+        "recipients": envelope.get("recipients", []),
+        "subject": headers.get("subject", ""),
+        "rawBucket": raw["bucket"],
+        "rawKey": raw["key"],
+        "status": "RECEIVED",
+        "mlVerdict": "PENDING",
+        "virusVerdict": "PENDING",
+        "finalVerdict": "PENDING",
+        "hasAttachments": False,
+        "attachmentCount": 0,
     }
 
     try:
         TABLE.put_item(
             Item=item,
-            ConditionExpression="attribute_not_exists(sk)"
+            ConditionExpression="attribute_not_exists(messageId)"
         )
-
-        event["ledger_result"] = {
-            "ok": True,
-            "msgId": msg_id,
-            "s3Key": key,
-            "bucket": event["detail"]["bucket"]["name"]
-        }
-
-        return event
-
     except ClientError as e:
         if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-            print(f"Idempotent trigger for {msg_id}. Already processing.")
-            return {"ok": True, "idempotent": True, "msgId": msg_id, "s3Key": key}
+            print(f"Idempotent trigger for {msg_id}. Already received.")
+        else:
+            print(f"Failed to create initial record for {msg_id}: {e}")
+            raise
 
-        print(f"Failed to create initial record for {msg_id}: {e}")
-        raise
+    detail["ledger"] = {"ok": True, "messageId": msg_id}
+    return detail

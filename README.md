@@ -97,6 +97,57 @@ graph TD
 
 ## Deployment Guide
 
+## LocalStack Demo
+
+The local demo does not require AWS SES or Route53. It simulates SES inbound
+mail by uploading a raw `.eml` file to LocalStack S3 and emitting the shared
+`MailReceived` EventBridge event used by the analysis pipeline.
+
+```bash
+make local-up
+make local-build
+make local-deploy
+make local-create-users
+make local-seed-phishing
+make local-ui
+```
+
+Open `http://localhost:5173` and sign in with one of the demo accounts:
+
+* `admin@demo.local` / `admin123!demo`
+* `alice@demo.local` / `alice123!demo`
+* `bob@demo.local` / `bob123!demo`
+
+Useful seed commands:
+
+```bash
+make local-seed-benign
+make local-seed-phishing
+make local-seed-eicar
+```
+
+`make local-ui` builds the React dashboard and starts both the FastAPI API and
+static dashboard containers. `make local-api` is still available when you want
+to run only the API in the foreground.
+
+For Codex/demo runs, use the wrapper targets:
+
+```bash
+make codex-start
+make codex-status
+make codex-stop
+```
+
+`codex-start` starts LocalStack, deploys the local pipeline, creates demo users,
+seeds demo messages only when the message table is empty, and starts the API and
+dashboard. `codex-stop` stops LocalStack, API, and dashboard containers without
+deleting the LocalStack volume.
+
+Local mode keeps the AWS-compatible serverless shape: S3, EventBridge, Step
+Functions, Lambda packages, DynamoDB, FastAPI, and React. AWS-only resources
+such as SES, Route53, CloudFront, EFS, and ClamAV signature updater are disabled
+for `local-dev`.
+
 ### 1. Backend Infrastructure (Terraform)
 
 Deploy the core infrastructure (Networking, DynamoDB, API Gateway, S3, Core Lambdas).

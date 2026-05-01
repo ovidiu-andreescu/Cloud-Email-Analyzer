@@ -10,6 +10,7 @@ requires-python = ">=3.10"
 dependencies = [
   "fastapi==0.115.5",
   "mangum==0.17.0",
+  "uvicorn[standard]",
   "boto3",
   "botocore",
 ]

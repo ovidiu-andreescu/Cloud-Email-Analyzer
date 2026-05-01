@@ -11,10 +11,6 @@ data "aws_iam_policy_document" "sfn_assume" {
   }
 }
 
-data "aws_lambda_function" "virus_scan" {
-  function_name = "virus-scan-clam-av"
-}
-
 resource "aws_iam_role" "sfn_role" {
   name               = "${local.base_prefix}-sfn-role"
   assume_role_policy = data.aws_iam_policy_document.sfn_assume.json
@@ -23,12 +19,15 @@ resource "aws_iam_role" "sfn_role" {
 
 data "aws_iam_policy_document" "sfn_policy" {
   statement {
-    effect    = "Allow"
-    actions   = ["lambda:InvokeFunction"]
+    effect  = "Allow"
+    actions = ["lambda:InvokeFunction"]
     resources = [
       aws_lambda_function.init_ledger.arn,
       aws_lambda_function.parse_email.arn,
-      data.aws_lambda_function.virus_scan.arn
+      aws_lambda_function.resolve_recipients.arn,
+      aws_lambda_function.phishing_ml.arn,
+      aws_lambda_function.attachment_scan.arn,
+      aws_lambda_function.aggregate_verdicts.arn
     ]
   }
 }
@@ -44,14 +43,18 @@ resource "aws_iam_role_policy_attachment" "sfn_attach" {
 }
 
 resource "aws_sfn_state_machine" "email_pipeline" {
-  name     = "${local.base_prefix}-email-pipeline"
+  count    = local.is_local ? 0 : 1
+  name     = local.state_machine_name
   role_arn = aws_iam_role.sfn_role.arn
   tags     = local.tags
 
   definition = templatefile("email_pipeline.asl.json", {
-    init_ledger_lambda_arn         = aws_lambda_function.init_ledger.arn
-    parse_email_lambda_arn         = aws_lambda_function.parse_email.arn
-    virus_scan_lambda_arn          = data.aws_lambda_function.virus_scan.arn
+    init_ledger_lambda_arn        = aws_lambda_function.init_ledger.arn
+    resolve_recipients_lambda_arn = aws_lambda_function.resolve_recipients.arn
+    parse_email_lambda_arn        = aws_lambda_function.parse_email.arn
+    phishing_ml_lambda_arn        = aws_lambda_function.phishing_ml.arn
+    attachment_scan_lambda_arn    = aws_lambda_function.attachment_scan.arn
+    aggregate_verdicts_lambda_arn = aws_lambda_function.aggregate_verdicts.arn
   })
 
   depends_on = [
@@ -60,7 +63,7 @@ resource "aws_sfn_state_machine" "email_pipeline" {
 }
 
 resource "aws_s3_bucket_notification" "send_to_eventbridge" {
-  bucket = aws_s3_bucket.inbound.id
+  bucket      = aws_s3_bucket.inbound.id
   eventbridge = true
 }
 
@@ -75,8 +78,10 @@ data "aws_iam_policy_document" "eventbridge_assume" {
 }
 
 resource "aws_cloudwatch_event_target" "start_sfn_pipeline_target" {
-  rule      = aws_cloudwatch_event_rule.s3_new_email.name
-  target_id = "StartEmailPipelineSFN"
-  arn       = aws_sfn_state_machine.email_pipeline.arn
-  role_arn  = aws_iam_role.eventbridge_sfn_role.arn
+  count          = local.is_local ? 0 : 1
+  rule           = aws_cloudwatch_event_rule.s3_new_email.name
+  event_bus_name = aws_cloudwatch_event_bus.mail.name
+  target_id      = "StartEmailPipelineSFN"
+  arn            = aws_sfn_state_machine.email_pipeline[0].arn
+  role_arn       = aws_iam_role.eventbridge_sfn_role.arn
 }

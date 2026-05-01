@@ -14,7 +14,7 @@ import boto3
 router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 try:
-    LEDGER_TABLE_NAME = os.environ["LEDGER_TABLE"]
+    LEDGER_TABLE_NAME = os.environ.get("LEDGER_TABLE") or os.environ["MESSAGES_TABLE"]
     USERS_TABLE_NAME = os.environ["USERS_TABLE"]
 
     EMAIL_DATE_GSI = "by-date-gsi"

@@ -3,8 +3,12 @@
 #############################################
 
 resource "aws_s3_bucket" "inbound" {
-  # this was the name in your error
   bucket = local.bucket_name
+  tags   = local.tags
+}
+
+resource "aws_s3_bucket" "artifacts" {
+  bucket = local.artifacts_bucket_name
   tags   = local.tags
 }
 
@@ -79,15 +83,17 @@ resource "aws_s3_bucket_policy" "bucket_policy" {
 
 
 
-resource "aws_cloudwatch_event_rule" "s3_new_email" {
-  name        = "${local.base_prefix}-s3-new-email"
-  description = "Fires when a new object is created in the inbound bucket"
+resource "aws_cloudwatch_event_bus" "mail" {
+  name = local.event_bus_name
+}
 
-  # generic S3 object-created pattern; adjust if your pipeline uses a prefix
+resource "aws_cloudwatch_event_rule" "s3_new_email" {
+  name           = "${local.base_prefix}-mail-received"
+  description    = "Starts the mail analysis pipeline from canonical MailReceived events"
+  event_bus_name = aws_cloudwatch_event_bus.mail.name
+
   event_pattern = jsonencode({
-    "source" : ["aws.s3"],
-    "detail-type" : ["Object Created"],
-    # many people match on bucket name in detail.resource, but including the bucket ARN
-    # is enough to make Terraform happy and keep your outputs.tf working
+    "source" : ["mail.security.ingest"],
+    "detail-type" : ["MailReceived"]
   })
 }

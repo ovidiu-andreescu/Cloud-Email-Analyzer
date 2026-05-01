@@ -1,0 +1,10 @@
+From: attacker@example.com
+To: alice@demo.local
+Subject: Urgent password reset required
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Urgent password reset required.
+
+Verify your account and login immediately or your account will be suspended.
+Open this URL now: https://example.invalid/reset

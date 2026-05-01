@@ -19,6 +19,13 @@ terraform.tfstate
 terraform.tfstate.*
 *.tfvars
 artifacts/
+.localstack-build/
+.localstack-images.env
+.env.localstack
+
+# Node/frontend artifacts
+node_modules/
+*.tsbuildinfo
 
 
 # OS-generated files

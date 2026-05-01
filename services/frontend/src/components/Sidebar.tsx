@@ -3,11 +3,9 @@ import { NavLink } from "react-router-dom"
 
 export default function Sidebar() {
   const items = [
-    { label: "Activity", icon: "📊", href: "/" },
+    { label: "Inbox", icon: "📊", href: "/" },
+    { label: "Admin", icon: "👥", href: "/admin" },
     { label: "API Docs", icon: "🔌", href: "/api-docs" },
-    { label: "Block List", icon: "🚫", href: "/block-list" },
-    { label: "Updates & Help", icon: "❓", href: "/help" },
-    { label: "Users' Details", icon: "👥", href: "/users" },
   ]
 
   return (
@@ -42,8 +40,8 @@ export default function Sidebar() {
       <div className="mt-auto flex items-center gap-3 pt-6">
         <img src="/avatar.png" className="w-10 h-10 rounded-full" alt="avatar" />
         <div>
-          <div className="font-medium">Evano</div>
-          <div className="text-sm text-slate-500">Security Admin</div>
+          <div className="font-medium">Local Demo</div>
+          <button className="text-sm text-slate-500" onClick={() => { localStorage.removeItem("accessToken"); location.href = "/login" }}>Sign out</button>
         </div>
       </div>
     </aside>

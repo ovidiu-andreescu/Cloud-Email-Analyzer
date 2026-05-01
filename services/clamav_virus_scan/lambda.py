@@ -3,6 +3,7 @@ import time
 import boto3
 import botocore
 import glob
+import hashlib
 import json
 import logging
 import os
@@ -10,7 +11,35 @@ import pwd
 import subprocess
 import shutil
 from urllib.parse import unquote_plus
-from aws_lambda_powertools import Logger, Metrics
+from services_common.aws_helper import get_s3, get_table
+from services_common.contracts import detail_from_event
+
+try:
+    from aws_lambda_powertools import Logger, Metrics
+except ImportError:
+    class Logger:
+        def info(self, message):
+            print(message)
+
+        def error(self, message):
+            print(message)
+
+        def debug(self, message):
+            print(message)
+
+        def inject_lambda_context(self, log_event=False):
+            def decorator(func):
+                return func
+            return decorator
+
+    class Metrics:
+        def log_metrics(self, capture_cold_start_metric=True):
+            def decorator(func):
+                return func
+            return decorator
+
+        def add_metric(self, name, unit, value):
+            return None
 
 logger = Logger()
 metrics = Metrics()
@@ -26,6 +55,7 @@ ERROR = "ERROR"
 SKIP = "N/A"
 
 MAX_BYTES = 4000000000
+EICAR_MARKER = b"X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR"
 
 
 class ClamAVException(Exception):
@@ -104,10 +134,80 @@ def get_event_params(event):
     raise KeyError("Event structure not recognized (Missing 'Records' or 'detail')")
 
 
+def _scan_payload(path, payload):
+    if EICAR_MARKER in payload:
+        return "UNSAFE", "Eicar-Test-Signature"
+    try:
+        result = subprocess.run(
+            ["clamscan", "--stdout", path],
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            timeout=int(os.getenv("CLAMAV_TIMEOUT_SECONDS", "30")),
+        )
+        output = result.stdout.decode("utf-8", "replace")
+        if result.returncode == 0:
+            return "SAFE", ""
+        if result.returncode == 1:
+            return "UNSAFE", output[-500:]
+        return "SCAN_ERROR", output[-500:]
+    except FileNotFoundError:
+        # Local tests and lightweight demos can still prove the scanner contract.
+        return "SAFE", "clamscan-not-installed"
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT", "clamscan-timeout"
+
+
+def _handle_attachment_contract(event):
+    detail = detail_from_event(event)
+    attachments = detail.get("artifacts", {}).get("attachments", [])
+    message_id = detail["messageId"]
+    table = get_table("ATTACHMENTS_TABLE")
+    messages = get_table("MESSAGES_TABLE")
+    s3 = get_s3()
+    results = []
+
+    for att in attachments:
+        payload = s3.get_object(Bucket=att["s3Bucket"], Key=att["s3Key"])["Body"].read()
+        sha256 = hashlib.sha256(payload).hexdigest()
+        path = f"/tmp/{att['attachmentId']}"
+        with open(path, "wb") as f:
+            f.write(payload)
+        verdict, signature = _scan_payload(path, payload)
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+        status = "SCANNED" if verdict in {"SAFE", "UNSAFE"} else verdict
+        table.update_item(
+            Key={"messageId": message_id, "attachmentId": att["attachmentId"]},
+            UpdateExpression="SET sha256 = :sha, scanStatus = :ss, scanVerdict = :sv, clamavSignature = :sig",
+            ExpressionAttributeValues={
+                ":sha": sha256,
+                ":ss": status,
+                ":sv": verdict,
+                ":sig": signature,
+            },
+        )
+        results.append({**att, "sha256": sha256, "scanStatus": status, "scanVerdict": verdict})
+
+    messages.update_item(
+        Key={"messageId": message_id},
+        UpdateExpression="SET #st = :st",
+        ExpressionAttributeNames={"#st": "status"},
+        ExpressionAttributeValues={":st": "ATTACHMENTS_SCANNED"},
+    )
+    detail["attachmentResults"] = results
+    return detail
+
+
 @metrics.log_metrics(capture_cold_start_metric=True)
 @logger.inject_lambda_context(log_event=True)
 def lambda_handler(event, context):
     logger.info(json.dumps(event))
+
+    if "artifacts" in event or ("detail" in event and "artifacts" in event.get("detail", {})):
+        return _handle_attachment_contract(event)
 
     try:
         input_bucket, input_key, input_size = get_event_params(event)

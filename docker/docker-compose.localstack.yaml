@@ -1,26 +1,26 @@
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: ${LOCALSTACK_IMAGE:-localstack/localstack:3.8.1}
     container_name: localstack
     user: "root"
     ports:
       - "4566:4566"
       - "4510-4559:4510-4559"
     environment:
-      - SERVICES=s3,sqs,lambda,stepfunctions,iam,sts,logs,events,dynamodb
+      - SERVICES=s3,sqs,lambda,stepfunctions,iam,sts,logs,events,dynamodb,ecr,apigateway,apigatewayv2
       - DEFAULT_REGION=eu-central-1
       - AWS_DEFAULT_REGION=eu-central-1
       - DEBUG=1
       - LS_LOG=info
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN-}
       - LAMBDA_EXECUTOR=docker-reuse
       - LAMBDA_REMOTE_DOCKER=false
       - DOCKER_HOST=unix:///var/run/docker.sock
-      - LAMBDA_RUNTIME_IMAGE_MAPPING={"python3.10":"localstack/lambda-runtime:python3.10"}
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - "./localstack_data:/tmp/localstack"
+      - "localstack_data:/var/lib/localstack"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
@@ -44,6 +44,50 @@ services:
     volumes:
       - ../:/app:delegated
     tty: true
+
+  api:
+    image: cloud-email-analyzer-local-api:latest
+    build:
+      context: ..
+      dockerfile: services/web_server/Dockerfile
+    container_name: local-email-analyzer-api
+    depends_on:
+      localstack:
+        condition: service_healthy
+    entrypoint: ["python", "-m", "uvicorn"]
+    command: ["app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=eu-central-1
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - LEDGER_TABLE=cloud-email-analyzer-local-dev-messages
+      - MESSAGES_TABLE=cloud-email-analyzer-local-dev-messages
+      - USERS_TABLE=cloud-email-analyzer-local-dev-users
+      - MAILBOXES_TABLE=cloud-email-analyzer-local-dev-mailboxes
+      - INBOX_TABLE=cloud-email-analyzer-local-dev-inbox-messages
+      - ATTACHMENTS_TABLE=cloud-email-analyzer-local-dev-attachments
+      - JWT_SECRET=local-demo-secret
+      - PYTHONPATH=/var/task/src:/tmp/common-src
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../services/web_server/src:/var/task/src:delegated
+      - ../libs/common/src:/tmp/common-src:ro
+
+  frontend:
+    image: cloud-email-analyzer-local-api:latest
+    container_name: local-email-analyzer-frontend
+    depends_on:
+      api:
+        condition: service_started
+    entrypoint: ["python"]
+    command: ["/spa_server.py", "/site", "5173", "0.0.0.0"]
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../services/frontend/dist:/site:ro
+      - ../services/frontend/spa_server.py:/spa_server.py:ro
 
 volumes:
   localstack_data:

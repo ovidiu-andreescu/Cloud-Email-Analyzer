@@ -1,9 +1,7 @@
 import boto3, json, os
 from functools import lru_cache
 
-s3 = boto3.client('s3')
-
-def region() -> s3:
+def region() -> str:
     return (os.getenv("AWS_REGION")
             or os.getenv("AWS_DEFAULT_REGION")
             or "eu-central-1")
@@ -27,7 +25,18 @@ def get_ddb():
     return _session().resource("dynamodb", endpoint_url=_endpoint("dynamodb"))
 
 def get_table(table_env_name: str):
-    table_name = os.environ[table_env_name]
+    prefix = os.getenv("LOCAL_PREFIX", "cloud-email-analyzer-local-dev")
+    defaults = {
+        "MESSAGES_TABLE": os.getenv("LEDGER_TABLE", f"{prefix}-messages"),
+        "LEDGER_TABLE": os.getenv("MESSAGES_TABLE", f"{prefix}-messages"),
+        "USERS_TABLE": f"{prefix}-users",
+        "MAILBOXES_TABLE": f"{prefix}-mailboxes",
+        "INBOX_TABLE": f"{prefix}-inbox-messages",
+        "ATTACHMENTS_TABLE": f"{prefix}-attachments",
+    }
+    table_name = os.environ.get(table_env_name, defaults.get(table_env_name))
+    if not table_name:
+        raise KeyError(table_env_name)
     return get_ddb().Table(table_name)
 
 def s3_read(bucket, key):
@@ -63,3 +72,12 @@ def s3_write_bytes(bucket, key, data, content_type=None, metadata=None):
         ContentType = content_type or "application/octet-stream",
         Metadata = metadata or {}
     )
+
+def s3_read_json(bucket, key):
+    return json.loads(s3_read(bucket, key).decode("utf-8"))
+
+def eventbridge_client():
+    return _session().client("events", endpoint_url=_endpoint("events"))
+
+def stepfunctions_client():
+    return _session().client("stepfunctions", endpoint_url=_endpoint("stepfunctions"))

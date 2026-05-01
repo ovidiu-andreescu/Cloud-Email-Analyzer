@@ -1,9 +1,10 @@
-project     = "cloud-email-analyzer"
-env         = "local-dev"
-region      = "eu-central-1"
-domain_name = ""   # keep SES off locally
+project             = "cloud-email-analyzer"
+env                 = "local-dev"
+tenant_id           = "demo"
+region              = "eu-central-1"
+domain_name         = ""
+localstack_endpoint = "http://localhost:4566"
 
-# init_ledger_zip         = "artifacts/init_ledger.zip"
-# parse_email_zip         = "artifacts/parse_email.zip"
-
-tags        = { Owner = "ovidiu" }
+tags = {
+  Owner = "local"
+}

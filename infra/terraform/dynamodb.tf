@@ -1,5 +1,6 @@
 resource "aws_dynamodb_table" "ledger" {
-  name         = "${local.base_prefix}-ledger"
+  count        = local.is_local ? 0 : 1
+  name         = local.messages_table_name
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "messageId"
 
@@ -18,10 +19,11 @@ resource "aws_dynamodb_table" "ledger" {
 }
 
 resource "aws_dynamodb_table" "user" {
-  name         = "${local.base_prefix}-user" # This is your USERS_TABLE_NAME
+  count        = local.is_local ? 0 : 1
+  name         = local.users_table_name
   billing_mode = "PAY_PER_REQUEST"
 
-  hash_key     = "userId"
+  hash_key = "userId"
 
   attribute {
     name = "userId"
@@ -52,4 +54,58 @@ resource "aws_dynamodb_table" "user" {
       ttl, point_in_time_recovery
     ]
   }
+}
+
+resource "aws_dynamodb_table" "mailboxes" {
+  count        = local.is_local ? 0 : 1
+  name         = local.mailboxes_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "emailAddress"
+
+  attribute {
+    name = "emailAddress"
+    type = "S"
+  }
+
+  tags = local.tags
+}
+
+resource "aws_dynamodb_table" "inbox" {
+  count        = local.is_local ? 0 : 1
+  name         = local.inbox_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "sortKey"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "sortKey"
+    type = "S"
+  }
+
+  tags = local.tags
+}
+
+resource "aws_dynamodb_table" "attachments" {
+  count        = local.is_local ? 0 : 1
+  name         = local.attachments_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "messageId"
+  range_key    = "attachmentId"
+
+  attribute {
+    name = "messageId"
+    type = "S"
+  }
+
+  attribute {
+    name = "attachmentId"
+    type = "S"
+  }
+
+  tags = local.tags
 }
