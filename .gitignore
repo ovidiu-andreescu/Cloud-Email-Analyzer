@@ -21,6 +21,10 @@ terraform.tfstate.*
 artifacts/
 .localstack-build/
 .localstack-images.env
+.env
+.env.*
+!.env.example
+!.env.*.example
 .env.localstack
 
 # Node/frontend artifacts
