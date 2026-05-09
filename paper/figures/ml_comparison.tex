@@ -1,0 +1,29 @@
+\begin{tikzpicture}
+\begin{axis}[
+  width=13.2cm,
+  height=6.2cm,
+  ybar,
+  ymin=0,
+  ymax=1.00,
+  bar width=5pt,
+  ylabel={Metric value},
+  symbolic x coords={LR,NB,RF,SGD},
+  xtick=data,
+  xlabel={Classifier},
+  enlarge x limits=0.20,
+  legend style={at={(0.5,1.08)},anchor=south,legend columns=4,font=\scriptsize,draw=none},
+  tick label style={font=\scriptsize},
+  label style={font=\small},
+  grid=major,
+  major grid style={gray!25},
+  nodes near coords,
+  every node near coord/.append style={font=\tiny,rotate=90,anchor=west},
+  scaled y ticks=false
+]
+\addplot coordinates {(LR,0.980) (NB,0.950) (RF,0.918) (SGD,0.983)};
+\addplot coordinates {(LR,0.980) (NB,0.950) (RF,0.918) (SGD,0.983)};
+\addplot coordinates {(LR,0.980) (NB,0.953) (RF,0.922) (SGD,0.983)};
+\addplot coordinates {(LR,0.980) (NB,0.950) (RF,0.918) (SGD,0.983)};
+\legend{Accuracy,F1,Precision,Recall}
+\end{axis}
+\end{tikzpicture}

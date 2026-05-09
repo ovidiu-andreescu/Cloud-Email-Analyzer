@@ -1,0 +1,30 @@
+\begin{tikzpicture}[
+  font=\small,
+  stage/.style={draw, rounded corners=2pt, align=center, minimum width=2.2cm, minimum height=0.82cm, fill=gray!8},
+  store/.style={draw, rounded corners=2pt, align=center, minimum width=3.2cm, minimum height=0.72cm, fill=blue!6},
+  arrow/.style={-{Latex[length=2mm]}, thick},
+  lightarrow/.style={-{Latex[length=1.8mm]}, thin},
+  node distance=0.62cm and 0.58cm
+]
+\node[stage] (event) {\texttt{MailReceived}\\event};
+\node[stage, right=of event] (init) {InitLedger\\\texttt{RECEIVED}};
+\node[stage, right=of init] (resolve) {ResolveRecipients\\owners};
+\node[stage, right=of resolve] (parse) {ParseEmail\\body, files};
+\node[stage, right=of parse] (ml) {PhishingML\\text verdict};
+\node[stage, right=of ml] (scan) {AttachmentScan\\file verdicts};
+\node[stage, right=of scan] (agg) {AggregateVerdicts\\final state};
+
+\draw[arrow] (event) -- (init);
+\draw[arrow] (init) -- (resolve);
+\draw[arrow] (resolve) -- (parse);
+\draw[arrow] (parse) -- (ml);
+\draw[arrow] (ml) -- (scan);
+\draw[arrow] (scan) -- (agg);
+
+\node[store, below=1.0cm of resolve] (ledger) {DynamoDB ledger\\messages, inbox, attachments};
+\node[store, below=1.0cm of ml] (artifacts) {S3 artifacts\\raw, parsed, attachments};
+
+\draw[lightarrow] (resolve.south) -- (ledger.north);
+\draw[lightarrow] (parse.south) -- (artifacts.north);
+\draw[lightarrow] (scan.south) -- (artifacts.north);
+\end{tikzpicture}

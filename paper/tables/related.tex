@@ -1,0 +1,18 @@
+\begin{table}[!htbp]
+\papertablecaption{tab:related}{Positioning against selected related work}
+\centering
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{0.24\textwidth}|>{\raggedright\arraybackslash}p{0.34\textwidth}|>{\raggedright\arraybackslash}p{0.32\textwidth}|}
+\hline
+\textbf{Research line} & \textbf{Main emphasis in related work} & \textbf{Cloud Email Analyzer emphasis} \\
+\hline
+Phishing ML detectors & Supervised classification of phishing messages using engineered, text, URL, or embedding features. & Uses a TF-IDF classifier as one detector inside a larger triage workflow. \\
+\hline
+Multi-module phishing systems & Combines several email components to improve phishing detection and reduce single-signal blind spots. & Combines text verdicts with attachment scanning, storage, authorization, and audit review. \\
+\hline
+Attachment and MIME research & Studies malicious attachments and evasion through parsing ambiguity. & Preserves raw MIME, stores parsed artifacts, and exposes per-attachment scan evidence. \\
+\hline
+Serverless workflow research & Coordinates event-driven functions through state machines, triggers, and cloud services. & Applies event-driven orchestration to email ingestion, analysis, verdict aggregation, and review. \\
+\hline
+\end{tabular}
+\end{table}

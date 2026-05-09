@@ -1,0 +1,24 @@
+\begin{table}[!htbp]
+\papertablecaption{tab:artifacts}{Persisted records and artifacts}
+\centering
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{0.23\textwidth}|>{\raggedright\arraybackslash}p{0.27\textwidth}|>{\raggedright\arraybackslash}p{0.40\textwidth}|}
+\hline
+\textbf{Store} & \textbf{Key or identifier} & \textbf{Purpose} \\
+\hline
+S3 raw email & Inbound message object key & Preserves the original MIME message for inspection and reprocessing. \\
+\hline
+S3 parsed body & Message-scoped parsed artifact key & Stores parsed headers, summary, plain text, HTML, and attachment summaries. \\
+\hline
+S3 attachments & Message-scoped attachment object keys & Stores extracted attachment bytes separately from workflow payloads. \\
+\hline
+DynamoDB message ledger & \texttt{messageId} & Central state for status, ownership, raw/artifact pointers, and verdicts. \\
+\hline
+DynamoDB inbox projection & \texttt{userId}, time-sort key & User-specific query rows with display status and verdicts. \\
+\hline
+DynamoDB attachment records & \texttt{messageId}, \texttt{attachmentId} & Per-file metadata, SHA-256, scanner status, verdict, and signature. \\
+\hline
+DynamoDB audit records & \texttt{tenantId}, time-sort key & Records security-relevant actions such as login, view, reprocess, and download. \\
+\hline
+\end{tabular}
+\end{table}

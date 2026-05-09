@@ -1,0 +1,26 @@
+\begin{table}[!htbp]
+\papertablecaption{tab:components}{Cloud Email Analyzer components and responsibilities}
+\centering
+\small
+\begin{tabular}{|>{\raggedright\arraybackslash}p{0.22\textwidth}|>{\raggedright\arraybackslash}p{0.43\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}|}
+\hline
+\textbf{Component} & \textbf{Responsibility} & \textbf{Main output} \\
+\hline
+SES and Route53 ingress & Receive mail with SES for a domain whose MX records are managed in Route53, then place the raw MIME object in cloud storage. & Raw message object and envelope metadata. \\
+\hline
+EventBridge boundary & Carry the canonical \texttt{MailReceived} event into the analysis workflow. & Stable event contract. \\
+\hline
+Step Functions workflow & Orchestrate the sequential stages with retry behavior. & Ordered processing state. \\
+\hline
+Ledger and recipient stages & Create the message row, map envelope recipients to owners, and write inbox rows. & Message ownership and inbox visibility. \\
+\hline
+Parser stage & Parse MIME headers, text, HTML, and attachments; store parsed JSON and file artifacts. & Parsed body artifact and attachment records. \\
+\hline
+Detection stages & Run packaged TF-IDF classifier inference and ClamAV attachment scanning. & ML verdicts and per-file scan evidence. \\
+\hline
+Aggregation stage & Combine ML and attachment evidence into message and inbox verdicts. & Final verdict: \texttt{SAFE}, \texttt{SUSPICIOUS}, or \texttt{UNSAFE}. \\
+\hline
+FastAPI API and React dashboard & FastAPI enforces authorization and exposes message/admin endpoints; React presents the user and administrator review workflows. & Authenticated user/admin security inbox. \\
+\hline
+\end{tabular}
+\end{table}

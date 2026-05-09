@@ -1,0 +1,37 @@
+\begin{tikzpicture}[
+  font=\small,
+  node distance=0.72cm and 0.78cm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum width=2.35cm, minimum height=0.78cm, fill=gray!7},
+  ingress/.style={box, fill=orange!10},
+  event/.style={box, fill=blue!8},
+  process/.style={box, fill=green!9},
+  review/.style={box, fill=purple!8},
+  arrow/.style={-{Latex[length=2.1mm]}, thick}
+]
+\node[ingress] (sender) {External\\sender};
+\node[ingress, right=of sender] (route53) {Route53 DNS\\MX records};
+\node[ingress, right=of route53] (ses) {Amazon SES\\inbound mail};
+\node[ingress, right=of ses] (raw) {S3\\raw MIME};
+\node[event, right=of raw] (publisher) {Ingestion adapter\\canonical event};
+\node[event, right=of publisher] (bus) {EventBridge\\\texttt{MailReceived}};
+
+\node[process, below=1.05cm of bus] (sfn) {Step Functions\\workflow};
+\node[process, left=of sfn] (lambda) {Lambda stages\\parse, ML, scan};
+\node[process, left=of lambda] (stores) {S3 artifacts\\DynamoDB ledger};
+\node[review, left=of stores] (api) {FastAPI\\authenticated API};
+\node[review, left=of api] (ui) {React dashboard\\user/admin review};
+
+\draw[arrow] (sender) -- (route53);
+\draw[arrow] (route53) -- (ses);
+\draw[arrow] (ses) -- (raw);
+\draw[arrow] (raw) -- (publisher);
+\draw[arrow] (publisher) -- (bus);
+\draw[arrow] (bus) -- (sfn);
+\draw[arrow] (sfn) -- (lambda);
+\draw[arrow] (lambda) -- (stores);
+\draw[arrow] (stores) -- (api);
+\draw[arrow] (api) -- (ui);
+
+\node[draw, dashed, rounded corners=3pt, fit=(sender)(route53)(ses)(raw)(publisher)(bus), inner sep=0.24cm, label={[font=\small\bfseries]above:AWS mail ingress and event boundary}] {};
+\node[draw, dashed, rounded corners=3pt, fit=(sfn)(lambda)(stores)(api)(ui), inner sep=0.24cm, label={[font=\small\bfseries]below:Analysis, persistence, and review}] {};
+\end{tikzpicture}
