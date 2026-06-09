@@ -3,8 +3,11 @@
 Cloud Email Analyzer is a local-first email security inbox that is being migrated back toward an AWS-capable architecture.
 
 Team members:
+
 -> Ovidiu-Ştefan ANDREESCU
+
 -> Andrei ANGHELEA
+
 -> Eduard-Cristian SÎRBU-BOEŢI
 
 The product goal is simple:
