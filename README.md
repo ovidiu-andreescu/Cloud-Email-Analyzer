@@ -28,7 +28,7 @@ Key capabilities include:
 - raw MIME and derived-artifact preservation in S3-compatible storage;
 - TF-IDF-based phishing classification using committed model artifacts;
 - per-attachment ClamAV scan status and final verdict aggregation;
-- mailbox ownership and administrator authorization enforced by the API; and
+- mailbox ownership and administrator authorization enforced by the API;
 - audit records for security-relevant review actions.
 
 ## Technology
