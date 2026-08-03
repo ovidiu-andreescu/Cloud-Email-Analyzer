@@ -33,6 +33,8 @@ node_modules/
 
 # Generated presentation workspaces
 outputs/
+paper/archive/
+presentation/archive/
 
 # LaTeX build intermediates
 *.aux

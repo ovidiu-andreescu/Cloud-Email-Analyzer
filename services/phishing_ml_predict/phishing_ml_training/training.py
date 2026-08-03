@@ -1,5 +1,4 @@
 import os
-import re
 import joblib
 import pandas as pd
 import numpy as np
@@ -10,6 +9,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
+from text_preprocessing import clean_text
 
 TRAIN_FILES = {
     "Enron": "Enron.csv",
@@ -25,25 +25,6 @@ EXTERNAL_TEST_FILES = {
 
 MODEL_PATH = "core4_phishing_model.joblib"
 VECTORIZER_PATH = "core4_tfidf_vectorizer.joblib"
-
-
-def clean_text(t: str) -> str:
-    if not isinstance(t, str):
-        return ""
-    t = t.lower()
-    t = re.sub(r'\S*http\S*', ' URL ', t)
-    t = re.sub(r'\S*www\.\S*', ' URL ', t)
-    t = re.sub(r'(^|\n)(x-[a-z0-9-]+:|received:|return-path:|delivered-to:|authentication-results:).*?(\n|$)', ' ', t)
-    t = re.sub(r'\b(enron|vince|louise|hpl|houston|wrote|thanks|original message|pm|am|university|edu)\b', ' ', t)
-    t = re.sub(r'\b(opensuse|perl|python|java|linux|unix|localhost)\b', ' ', t)
-    t = re.sub(r'x-spam-summary:.*', '', t)
-    t = t.replace("don't delete this message -- folder internal data", "")
-    t = t.replace("this text is part of the internal format of your mail folder", "")
-    t = re.sub(r'-+\s?forwarded by.*?-+', ' ', t)
-    t = re.sub(r"\d+", " NUM ", t)
-    t = re.sub(r"[^a-z0-9@._ ]+", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-    return t
 
 
 def load_corpus(path: str, name: str) -> pd.DataFrame:

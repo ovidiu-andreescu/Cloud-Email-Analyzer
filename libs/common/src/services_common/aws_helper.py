@@ -40,6 +40,18 @@ def get_table(table_env_name: str):
         raise KeyError(table_env_name)
     return get_ddb().Table(table_name)
 
+
+def query_all(table, **kwargs):
+    """Return every page from a DynamoDB query using the supplied arguments."""
+    response = table.query(**kwargs)
+    items = response.get("Items", [])
+    while response.get("LastEvaluatedKey"):
+        response = table.query(
+            **{**kwargs, "ExclusiveStartKey": response["LastEvaluatedKey"]}
+        )
+        items.extend(response.get("Items", []))
+    return items
+
 def s3_read(bucket, key):
     s3 = get_s3()
     if not s3:

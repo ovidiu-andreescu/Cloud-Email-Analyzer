@@ -1,16 +1,12 @@
-from datetime import datetime, timezone
 import logging
 from typing import Any
 from uuid import uuid4
 
 from services_common.aws_helper import get_table
+from services_common.contracts import now_iso
 
 
 logger = logging.getLogger(__name__)
-
-
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def write_audit(

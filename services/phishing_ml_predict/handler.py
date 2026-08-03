@@ -1,11 +1,11 @@
 import os
-import re
 import json
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from services_common.aws_helper import get_table, s3_read_json
 from services_common.contracts import detail_from_event
+from phishing_ml_training.text_preprocessing import clean_text
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model_artifacts" / "core4_phishing_model.joblib"
@@ -100,34 +100,6 @@ def predict_with_demo_fallback(cleaned_text: str):
     if matched_phrase:
         return "PHISHING", "credential_theft", 0.99, matched_phrase
     return "LOW_RISK", "ham", 0.50, None
-
-
-def clean_text(t: str) -> str:
-    if not isinstance(t, str):
-        return ""
-
-    t = t.lower()
-
-    t = re.sub(r'\S*http\S*', ' URL ', t)
-    t = re.sub(r'\S*www\.\S*', ' URL ', t)
-
-    t = re.sub(r'(^|\n)(x-[a-z0-9-]+:|received:|return-path:|delivered-to:|authentication-results:).*?(\n|$)', ' ', t)
-
-    t = re.sub(r'\b(enron|vince|louise|hpl|houston|wrote|thanks|original message|pm|am|university|edu)\b', ' ', t)
-
-    t = re.sub(r'\b(opensuse|perl|python|java|linux|unix|localhost)\b', ' ', t)
-
-    t = re.sub(r'x-spam-summary:.*', '', t)
-    t = t.replace("don't delete this message -- folder internal data", "")
-    t = t.replace("this text is part of the internal format of your mail folder", "")
-
-    t = re.sub(r'-+\s?forwarded by.*?-+', ' ', t)
-
-    t = re.sub(r"\d+", " NUM ", t)
-    t = re.sub(r"[^a-z0-9@._ ]+", " ", t)
-    t = re.sub(r"\s+", " ", t).strip()
-
-    return t
 
 
 def lambda_handler(event, context):

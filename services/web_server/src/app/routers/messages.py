@@ -11,7 +11,7 @@ from urllib.parse import quote, urlparse
 from boto3.dynamodb.conditions import Key
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from services_common.aws_helper import get_table, s3_read, s3_read_json, stepfunctions_client
+from services_common.aws_helper import get_table, query_all, s3_read, s3_read_json, stepfunctions_client
 from services_common.contracts import new_execution_name
 from ..audit import write_audit
 from ..auth import current_user, is_admin, public_user
@@ -59,17 +59,6 @@ def _scan_all(table_name: str) -> list[dict[str, Any]]:
     items = response.get("Items", [])
     while response.get("LastEvaluatedKey"):
         response = table.scan(ExclusiveStartKey=response["LastEvaluatedKey"])
-        items.extend(response.get("Items", []))
-    return items
-
-
-def _query_all(table, **kwargs) -> list[dict[str, Any]]:
-    response = table.query(**kwargs)
-    items = response.get("Items", [])
-    while response.get("LastEvaluatedKey"):
-        response = table.query(
-            **{**kwargs, "ExclusiveStartKey": response["LastEvaluatedKey"]}
-        )
         items.extend(response.get("Items", []))
     return items
 
@@ -265,7 +254,7 @@ def _filter_messages(
 
 
 def _attachments_for_message(message_id: str) -> list[dict[str, Any]]:
-    return _query_all(
+    return query_all(
         get_table("ATTACHMENTS_TABLE"),
         KeyConditionExpression=Key("messageId").eq(message_id)
     )
@@ -402,7 +391,7 @@ def list_messages(
     cursor: Optional[str] = None,
     user=Depends(current_user),
 ):
-    items = _hydrate_inbox_rows(_query_all(
+    items = _hydrate_inbox_rows(query_all(
         get_table("INBOX_TABLE"),
         KeyConditionExpression=Key("userId").eq(_user_id(user)),
         ScanIndexForward=False,
@@ -458,7 +447,7 @@ def list_attachments(message_id: str, user=Depends(current_user)):
     item = _get_message_or_404(message_id)
     if not _message_allowed(item, user):
         raise HTTPException(status_code=403, detail="forbidden")
-    rows = _query_all(
+    rows = query_all(
         get_table("ATTACHMENTS_TABLE"),
         KeyConditionExpression=Key("messageId").eq(message_id)
     )
