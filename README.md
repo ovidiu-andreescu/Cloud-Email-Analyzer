@@ -7,6 +7,8 @@ Cloud Email Analyzer is an event-driven email-security review platform. It prese
 
 The project combines an AWS-shaped processing pipeline with a reproducible local development deployment built on LocalStack, Docker, Terraform, FastAPI, and React.
 
+![Authenticated review dashboard showing an EICAR attachment verdict](docs/images/dashboard-eicar-review.jpg)
+
 ## What It Does
 
 ```text

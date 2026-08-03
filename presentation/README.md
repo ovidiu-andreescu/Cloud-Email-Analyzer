@@ -1,6 +1,6 @@
 # Cloud Email Analyzer Presentation
 
-This directory contains the SCSS presentation package generated from the finished paper in `paper/`.
+This directory contains the presentation package generated from the finished paper in `paper/`.
 
 ## Files
 

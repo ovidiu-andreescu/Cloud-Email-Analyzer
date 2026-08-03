@@ -3,7 +3,7 @@ env         = "dev"
 region      = "eu-central-1"
 domain_name = "agg.services"   # once Route53 is authoritative
 
-# Use ECR image URIs (built/pushed in CI)
+# Supply ECR image URIs for the target AWS account
 init_ledger_image_uri         = "...:latest"
 parse_email_image_uri         = "...:latest"
 

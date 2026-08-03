@@ -91,14 +91,12 @@ init-tf: up ## Initialize LocalStack with Terraform (requires services to be up)
 	@echo "Initializing LocalStack with Terraform..."
 	$(COMPOSE_INTEGRATION) run --rm tests /app/scripts/init_localstack.sh
 
-test: test-unit test-integration ## Run all unit and integration tests
+test: test-unit ## Run the available automated test suite
 
 test-unit: ## Run unit tests (fast and isolated)
 	@echo "Running unit tests..."
 	$(COMPOSE_UNIT) run --rm --build tests /app/scripts/run_tests.sh unit
 
-test-integration: init-tf ## Run integration tests (includes setup and teardown)
-	@echo "Running integration tests..."
-	$(COMPOSE_INTEGRATION) run --rm tests /app/scripts/run_tests.sh integration
-	@echo "Tearing down integration test environment..."
-	@$(COMPOSE_INTEGRATION) down
+test-integration: ## Report the pending integration-test suite
+	@echo "Integration tests are not implemented yet; see GitHub issue #15."
+	@exit 1
