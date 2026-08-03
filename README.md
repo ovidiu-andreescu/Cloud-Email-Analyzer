@@ -1,72 +1,74 @@
 # Cloud Email Analyzer
 
-> A local-first email-security pipeline that turns raw messages into clear, auditable security evidence.
+[![CI](https://github.com/ovidiu-andreescu/Cloud-Email-Analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/ovidiu-andreescu/Cloud-Email-Analyzer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Cloud Email Analyzer receives a MIME email, extracts its content and attachments, evaluates phishing signals and malware verdicts, and presents the result in an authenticated review dashboard. The project is designed for a convincing local demonstration today and a reusable AWS deployment path later.
+Cloud Email Analyzer is an event-driven email-security review platform. It preserves raw messages, extracts reviewable evidence, classifies phishing risk, scans attachments with ClamAV, and presents the resulting verdicts in an authenticated dashboard.
 
-## What It Demonstrates
+The project combines an AWS-shaped processing pipeline with a reproducible local development deployment built on LocalStack, Docker, Terraform, FastAPI, and React.
 
-- **Event-driven design** — one canonical `MailReceived` event connects ingestion to a staged processing pipeline.
-- **Defense in depth** — phishing-text classification, ClamAV attachment scanning, a reviewable ledger, and audit logging work together.
-- **Practical authorization** — the API, rather than the UI, enforces user mailbox ownership and admin access.
-- **Reproducible local workflow** — LocalStack, Docker, Terraform, FastAPI, React, and fixtures provide a self-contained demo environment.
+## What It Does
 
 ```text
-Email fixture or AWS SES
+Receive or seed an email
         |
         v
-  MailReceived event
+Preserve raw MIME -> Resolve recipients -> Parse content and attachments
         |
         v
-Resolve recipient -> Parse message -> Phishing ML -> Attachment scan -> Aggregate verdicts
+Phishing classification -> ClamAV scan -> Aggregate verdicts
         |
         v
-DynamoDB ledger -> FastAPI -> React review dashboard
+DynamoDB review state -> FastAPI -> React dashboard and audit views
 ```
+
+Key capabilities include:
+
+- a canonical `MailReceived` event that keeps ingestion separate from analysis;
+- raw MIME and derived-artifact preservation in S3-compatible storage;
+- TF-IDF-based phishing classification using committed model artifacts;
+- per-attachment ClamAV scan status and final verdict aggregation;
+- mailbox ownership and administrator authorization enforced by the API; and
+- audit records for security-relevant review actions.
 
 ## Technology
 
 | Area | Tools |
 | --- | --- |
-| Local cloud emulation | LocalStack, Docker, Terraform |
-| Processing | AWS Lambda-compatible Python services, EventBridge, Step Functions |
-| Security analysis | Scikit-learn phishing classifier, ClamAV |
-| Storage and API | DynamoDB, FastAPI |
+| Infrastructure | Terraform, LocalStack, Docker Compose |
+| Processing | Python Lambda services, EventBridge, Step Functions |
+| Security analysis | Scikit-learn, ClamAV |
+| Data and API | S3, DynamoDB, FastAPI |
 | Interface | React, TypeScript, Vite |
-| Validation | Pytest, Docker Compose |
+| Validation | Pytest, GitHub Actions |
 
-## Quick Start
+## Run the Local Development Deployment
+
+The complete development deployment uses LocalStack Pro and Lambda container images.
 
 ### Prerequisites
 
 - Docker Desktop
-- AWS CLI and Terraform
-- Node.js/npm
-- A LocalStack Pro auth token in an ignored `.env.localstack` file
+- AWS CLI
+- Terraform
+- Node.js and npm
+- A LocalStack Pro auth token
 
-Create the token file locally (never commit it):
+Create an ignored `.env.localstack` file in the repository root:
 
 ```bash
 LOCALSTACK_AUTH_TOKEN=your-token-here
 ```
 
-Start the complete demo:
+Start the complete environment:
 
 ```bash
 make codex-start
 ```
 
-Then open the dashboard at <http://localhost:5173/login> and the API at <http://localhost:8000/>.
+Open the dashboard at <http://localhost:5173/login> or the API at <http://localhost:8000/>.
 
-Useful companion commands:
-
-```bash
-make codex-status    # inspect service status
-make codex-populate  # recreate demo users and sample messages
-make codex-stop      # stop the stack and remove local demo state
-```
-
-The repository includes deliberately non-sensitive demo accounts for local evaluation:
+The local population step creates these demo accounts:
 
 ```text
 admin@demo.local / admin123!demo
@@ -74,57 +76,67 @@ alice@demo.local / alice123!demo
 bob@demo.local   / bob123!demo
 ```
 
-## Demo Scenarios
+The included fixtures cover benign mail, a phishing-style message, an EICAR antivirus test attachment, and a message with several safe attachments.
 
-The fixture set demonstrates benign mail, a phishing-style message, an EICAR antivirus test attachment, and a message with several safe attachments. Local mode seeds `.eml` files because LocalStack does not accept real inbound SES email.
-
-## Architecture and Deployment Modes
-
-| Mode | Status | Packaging | Notes |
-| --- | --- | --- | --- |
-| Local Pro | Supported demo path | Lambda container images in LocalStack ECR | Full local pipeline, including ML and ClamAV image scan. |
-| Local Free | Experimental | ZIP Lambdas | Preserved for future work; packaged ML and production-grade ClamAV lifecycle are incomplete. |
-| AWS | Planned | ECR Lambda images | Shares the pipeline contract; SES adapter, production identity, and operational hardening remain. |
-
-The environment-specific ingestion adapters emit the same `MailReceived` contract, so the parser, classifier, scanner, ledger, API, and dashboard remain shared.
-
-## Developer Commands
+Useful commands:
 
 ```bash
-make local-up              # start LocalStack
-make local-build           # build/push LocalStack Lambda images
-make local-deploy          # provision local infrastructure and workflow
-make local-create-users    # create demo users and mailbox mappings
-make local-seed-benign     # seed a benign message
-make local-seed-phishing   # seed a phishing-style message
-make local-seed-eicar      # seed the EICAR test message
-make local-seed-multiple   # seed a safe multi-attachment message
-make local-ui              # build and serve the API and frontend
-make local-down            # stop the local demo and clear its state
+make codex-status    # show local service status
+make codex-populate  # recreate demo users and messages
+make codex-stop      # stop services and clear local demo state
 ```
 
-## Verification
+## Test and Validate
+
+Run the Python unit tests:
 
 ```bash
-# Frontend production build
-cd services/frontend && npm run build
-
-# Python unit tests
-uv run --extra test --with fastapi==0.115.5 --with boto3 --with botocore python -m pytest tests/unit
+uv run --locked --extra test \
+  --with fastapi==0.115.5 \
+  --with boto3 \
+  --with botocore \
+  python -m pytest tests/unit
 ```
+
+Build the frontend:
+
+```bash
+cd services/frontend
+npm ci
+npm run build
+```
+
+Check Terraform formatting and configuration:
+
+```bash
+terraform -chdir=infra/terraform fmt -check -recursive
+terraform -chdir=infra/terraform init -backend=false
+terraform -chdir=infra/terraform validate
+```
+
+GitHub Actions runs these checks automatically for pushes and pull requests targeting `main` or `dev`. CI also compiles the Python sources and validates every presentation `.mjs` module. These checks require neither a LocalStack subscription nor an AWS account.
+
+## Repository Structure
+
+| Path | Purpose |
+| --- | --- |
+| `services/` | Pipeline stages, FastAPI backend, React frontend, ML inference, and ClamAV services |
+| `libs/common/` | Shared AWS clients, event contracts, mail helpers, and secret loading |
+| `infra/terraform/` | Active infrastructure definitions for storage, orchestration, compute, API, and frontend hosting |
+| `infra/legacy/` | Historical AWS deployment material retained for restoration work |
+| `docker/` | Local development and test container definitions |
+| `scripts/` | Build, provision, populate, operate, and inspect the local environment |
+| `fixtures/` | Deterministic demo messages and user population data |
+| `tests/` | Unit and integration-test workspace |
+| `paper/` | LaTeX project paper and native figures |
+| `presentation/` | Presentation deliverables, recorded demos, and editable slide source |
 
 ## Project Materials
 
-- [Project paper](paper/README.md) — LaTeX source and rendered paper.
-- [Presentation](presentation/README.md) — editable PowerPoint deck, PDF export, and editable slide source.
-- `presentation/Cloud_Email_Analyzer_Demo.mp4` and `presentation/Cloud_Email_Analyzer_Demo_x2.mov` — recorded project demonstrations.
-- `fixtures/` — safe, deterministic local demo messages and population data.
-
-## Security and Repository Hygiene
-
-Credentials belong in ignored local environment files; `.env.localstack` is intentionally excluded from Git. The repository retains source, model artifacts, recorded demos, and the paper/presentation deliverables needed to evaluate the project, while generated LocalStack ZIP packages, tool state, and backups are excluded.
-
-For a production AWS deployment, supply a strong `jwt_secret`, use managed identity, and complete the operational ClamAV signature-update lifecycle described in the paper.
+- [Project paper](paper/README.md)
+- [Presentation package](presentation/README.md)
+- [Recorded MP4 demo](presentation/Cloud_Email_Analyzer_Demo.mp4)
+- [Recorded MOV demo](presentation/Cloud_Email_Analyzer_Demo_x2.mov)
 
 ## Authors
 

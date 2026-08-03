@@ -1,54 +1,119 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
+      - dev
   pull_request:
     branches:
       - main
       - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  unit-tests:
-    name: Unit Tests
+  python-tests:
+    name: Python unit tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Run unit tests
-        run: docker compose -f docker/docker-compose.unit.yaml run --rm tests /app/scripts/run_tests.sh unit
-
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Create tfvars file from secret
-        run: |
-          mkdir -p infra/env/local_dev/
-          cat > infra/env/local_dev/terraform.tfvars<<'EOF'
-          ${{ secrets.TF_VARS_CI }}
-          EOF
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and cache integration image
-        uses: docker/build-push-action@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          context: .
-          file: docker/Dockerfile.integration
-          load: true
-          tags: ci-test-image:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          python-version: "3.11"
 
-      - name: Run integration tests
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.6.10"
+          enable-cache: true
+
+      - name: Compile Python sources
+        run: >-
+          python -m compileall -q
+          libs/common/src
+          services
+          scripts
+          tests
+
+      - name: Run unit tests
+        run: >-
+          uv run --locked --extra test
+          --with fastapi==0.115.5
+          --with boto3
+          --with botocore
+          python -m pytest tests/unit
+
+  frontend-build:
+    name: Frontend production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: services/frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+  terraform-checks:
+    name: Terraform checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.0"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize providers
+        run: terraform init -backend=false -input=false
+
+      - name: Validate configuration
+        run: terraform validate -no-color
+
+  presentation-source:
+    name: Presentation source syntax
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check slide modules
         run: |
-#          docker compose -f docker/docker-compose.ci.yaml up -d
-#          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/init_localstack.sh
-#          docker compose -f docker/docker-compose.ci.yaml run --rm tests /app/scripts/run_tests.sh integration
-
-      - name: Tear down services
-        if: always()
-        run: docker compose -f docker/docker-compose.ci.yaml down
+          for source_file in presentation/resources/slides/*.mjs; do
+            node --check "$source_file"
+          done

@@ -1,6 +1,5 @@
 locals {
   base_prefix             = "${var.project}-${var.env}"
-  lambda_names            = { for name, _ in var.lambda_defs : name => "${local.base_prefix}-${name}" }
   is_local                = var.env == "local-dev"
   use_zip_lambdas         = local.is_local && var.local_lambda_mode == "zip"
   enable_ses              = var.env != "local-dev" && var.domain_name != ""

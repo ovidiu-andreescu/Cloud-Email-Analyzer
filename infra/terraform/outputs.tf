@@ -69,6 +69,6 @@ output "frontend_bucket_name" {
 }
 
 output "frontend_url" {
-  description = "The URL for the frontend S3 static website."
-  value       = try(aws_s3_bucket.frontend[0].website_endpoint, null)
+  description = "The HTTPS URL for the CloudFront-hosted frontend."
+  value       = try("https://${aws_cloudfront_distribution.cdn[0].domain_name}", null)
 }

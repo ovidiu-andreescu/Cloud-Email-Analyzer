@@ -102,23 +102,7 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
-variable "extract_attachments_image_uri" {
-  type    = string
-  default = ""
-}
-
 variable "bucket_name" {
   type    = string
   default = null
-}
-
-variable "aws_account_id" {
-  type    = string
-  default = ""
-}
-
-variable "users_table_name" {
-  description = "The name of the *existing* DynamoDB users table."
-  type        = string
-  default     = ""
 }

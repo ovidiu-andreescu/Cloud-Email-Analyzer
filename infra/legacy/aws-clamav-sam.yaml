@@ -1,4 +1,14 @@
 Transform: AWS::Serverless-2016-10-31
+Description: Historical AWS ClamAV scanner and scheduled signature-update stack
+
+Parameters:
+  VirusScanImageUri:
+    Type: String
+    Description: ECR image URI for the ClamAV scanning Lambda
+  DatabaseUpdateImageUri:
+    Type: String
+    Description: ECR image URI for the scheduled freshclam Lambda
+
 Resources:
   VPC:
     Type: "AWS::EC2::VPC"
@@ -237,7 +247,7 @@ Resources:
       Timeout: 800
       Tracing: Active
       PackageType: Image
-      ImageUri: 038583382098.dkr.ecr.eu-central-1.amazonaws.com/virus-scan-clam-av:latest
+      ImageUri: !Ref VirusScanImageUri
       FileSystemConfigs:
         - Arn: !GetAtt ClamAvEFSAccessPoint.Arn
           LocalMountPath: /mnt/clam-av
@@ -267,7 +277,7 @@ Resources:
       Timeout: 800
       Tracing: Active
       PackageType: Image
-      ImageUri: 038583382098.dkr.ecr.eu-central-1.amazonaws.com/virus-scan-clam-av-database:latest
+      ImageUri: !Ref DatabaseUpdateImageUri
       FileSystemConfigs:
         - Arn: !GetAtt ClamAvEFSAccessPoint.Arn
           LocalMountPath: /mnt/clam-av
