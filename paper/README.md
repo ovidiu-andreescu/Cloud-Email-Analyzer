@@ -1,6 +1,6 @@
 # Cloud Email Analyzer Paper
 
-This directory contains the SCCS-style LaTeX paper package for Cloud Email Analyzer.
+This directory contains the SCSS-style LaTeX paper package for Cloud Email Analyzer.
 
 ## Build
 
@@ -28,4 +28,4 @@ paper/main.pdf
 - `tables/` contains LaTeX-native tables included by `main.tex`.
 - `scripts/` is reserved for future reproducible figure-generation scripts.
 
-The remaining `TODO:` markers are limited to presentation metadata such as authors, groups, affiliations, coordinator, and SCCS section number.
+The paper front matter includes the confirmed student group, faculty, university, section, and scientific coordinator affiliation.

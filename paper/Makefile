@@ -4,7 +4,7 @@ TECTONIC ?= tectonic
 
 all: main.pdf
 
-main.pdf: main.tex references.bib figures/architecture.tex figures/pipeline.tex figures/data_model.tex figures/ml_comparison.tex tables/components.tex tables/artifacts.tex tables/related.tex tables/ml_results.tex
+main.pdf: main.tex references.bib figures/architecture.tex figures/pipeline.tex figures/data_model.tex figures/ml_comparison.tex figures/confusion_matrix.tex tables/components.tex tables/artifacts.tex tables/related.tex
 	$(TECTONIC) --keep-logs --keep-intermediates --reruns 2 main.tex
 
 clean:

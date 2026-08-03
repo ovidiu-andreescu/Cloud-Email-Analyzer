@@ -1,9 +1,10 @@
 \begin{tikzpicture}[
-  font=\small,
-  stage/.style={draw, rounded corners=2pt, align=center, minimum width=2.2cm, minimum height=0.82cm, fill=gray!8},
-  store/.style={draw, rounded corners=2pt, align=center, minimum width=3.2cm, minimum height=0.72cm, fill=blue!6},
+  font=\footnotesize,
+  stage/.style={draw, rounded corners=2pt, align=center, minimum width=2.2cm, minimum height=0.68cm, inner ysep=2pt, fill=white},
+  store/.style={draw, rounded corners=2pt, align=center, minimum width=4.9cm, minimum height=0.54cm, inner ysep=2pt, fill=white},
   arrow/.style={-{Latex[length=2mm]}, thick},
-  lightarrow/.style={-{Latex[length=1.8mm]}, thin},
+  groupbox/.style={draw, dashed, rounded corners=2pt, inner sep=3pt},
+  groupconn/.style={{Latex[length=1.2mm]}-{Latex[length=1.2mm]}, thin},
   node distance=0.62cm and 0.58cm
 ]
 \node[stage] (event) {\texttt{MailReceived}\\event};
@@ -21,10 +22,11 @@
 \draw[arrow] (ml) -- (scan);
 \draw[arrow] (scan) -- (agg);
 
-\node[store, below=1.0cm of resolve] (ledger) {DynamoDB ledger\\messages, inbox, attachments};
-\node[store, below=1.0cm of ml] (artifacts) {S3 artifacts\\raw, parsed, attachments};
+\coordinate (pipelineMid) at ($(event.west)!0.5!(agg.east)$);
+\node[store, below=1.16cm of pipelineMid, xshift=-2.75cm] (ledger) {DynamoDB ledger\\messages, inbox, attachments};
+\node[store, below=1.16cm of pipelineMid, xshift=2.75cm] (artifacts) {S3 artifacts\\raw, parsed, attachments};
 
-\draw[lightarrow] (resolve.south) -- (ledger.north);
-\draw[lightarrow] (parse.south) -- (artifacts.north);
-\draw[lightarrow] (scan.south) -- (artifacts.north);
+\node[groupbox, fit=(event) (init) (resolve) (parse) (ml) (scan) (agg)] (pipelineGroup) {};
+\node[groupbox, fit=(ledger) (artifacts)] (storageGroup) {};
+\draw[groupconn] (pipelineGroup.south) -- (storageGroup.north);
 \end{tikzpicture}

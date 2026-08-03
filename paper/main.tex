@@ -1,6 +1,6 @@
 \documentclass[12pt,a4paper]{article}
 
-\usepackage[a4paper,top=3.1cm,bottom=3.0cm,left=2.5cm,right=2.0cm,headheight=16pt]{geometry}
+\usepackage[a4paper,top=3.0cm,bottom=3.0cm,left=2.5cm,right=2.0cm,headheight=16pt]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{newtxtext}
@@ -33,7 +33,7 @@
 \captionsetup[figure]{font=small,justification=centering,labelsep=period}
 
 \newcommand{\shorttitle}{Cloud Email Analyzer}
-\newcommand{\conferenceheader}{Sesiunea de Comunicări Științifice Studențești, SCCS 2026, Secțiunea TODO: 12.X}
+\newcommand{\conferenceheader}{Sesiunea de Comunicări Științifice Studențești, SCSS 2026, Secțiunea 12-02}
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -93,11 +93,11 @@
 \thispagestyle{firstpage}
 
 \begin{center}
-{\bfseries\large\MakeUppercase{Cloud Email Analyzer: An Event-Driven Architecture for Email Threat Triage with ML-Assisted Classification and Attachment Scanning}}\par
+{\bfseries\large\MakeUppercase{Cloud Email Analyzer: Serverless Email Threat Detection with AWS, ML, and ClamAV}}\par
 \vspace{1.0em}
-{\normalsize Authors -- TODO: First AUTHOR$^{1}$, TODO: Second AUTHOR$^{2}$}\par
+{\normalsize Authors -- Andreescu Ovidiu-Ștefan$^{1}$, Anghelea Andrei$^{1}$, Sîrbu-Boeți Eduard-Cristian$^{1}$}\par
 \vspace{0.3em}
-{\normalsize Scientific Coordinator -- TODO: Academic title and full name$^{3}$}\par
+{\normalsize Scientific Coordinator -- Prof. dr. ing. Andrei VASILĂŢEANU$^{2}$}\par
 \end{center}
 
 \vspace{1.0em}
@@ -116,9 +116,8 @@ Cloud Email Analyzer este o platformă de securitate e-mail orientată spre AWS,
 
 \vfill
 \noindent{\small
-$^{1}$ TODO: Student, group TODO, Faculty TODO, e-mail: TODO.\\
-$^{2}$ TODO: Student, group TODO, Faculty TODO, e-mail: TODO.\\
-$^{3}$ TODO: Scientific coordinator affiliation, department, e-mail: TODO.}
+$^{1}$ Students, Faculty of Engineering in Foreign Languages (FILS), IOT 1241EC, National University of Science and Technology POLITEHNICA Bucharest.\\
+$^{2}$ Department of Engineering in Foreign Languages (DILS), National University of Science and Technology POLITEHNICA Bucharest.}
 \vspace{1.0em}
 \newpage
 
@@ -126,7 +125,7 @@ $^{3}$ TODO: Scientific coordinator affiliation, department, e-mail: TODO.}
 
 Email security systems have to treat an inbound message as more than a visible subject line and body. The raw message may contain MIME parts, alternative HTML and plain-text bodies, envelope recipients that differ from the displayed headers, embedded URLs, file attachments, authentication hints, and security verdicts produced by other systems. A useful analysis platform must therefore preserve the original message while extracting evidence into a form that can be queried, audited, and reviewed by users with different privileges.
 
-Cloud Email Analyzer addresses this operational problem through a staged, event-driven AWS architecture. The system receives raw email with Amazon SES for domains whose MX records are managed in Route53, stores the MIME source in S3, parses headers and bodies, extracts attachments, runs a phishing classifier on message text, scans files with ClamAV, persists a review ledger in DynamoDB, and presents the result in a FastAPI and React dashboard. LocalStack is used during development to exercise AWS-shaped service boundaries without changing the cloud design; it is an engineering aid, not the architectural endpoint.
+Cloud Email Analyzer addresses this operational problem through a staged, event-driven AWS architecture. The system receives raw email with Amazon SES for domains whose MX records are managed in Route53, stores the MIME source in S3, parses headers and bodies, extracts attachments, runs a phishing classifier on message text, scans files with ClamAV, persists a review ledger in DynamoDB, and presents the result in a FastAPI and React dashboard. LocalStack is used as a local development tool for exercising AWS-shaped service boundaries without changing the cloud design; the deployed design remains AWS-oriented.
 
 The central design decision is the canonical \texttt{MailReceived} event. After inbound mail is accepted and the MIME object is stored, later stages operate on an event containing tenant, message, envelope, header, verdict, and storage-pointer metadata. That boundary prevents MIME analysis, detector execution, and dashboard review from depending directly on the mechanics of SMTP receipt. It also gives the system a stable audit point: every derived artifact, detector output, and user-visible verdict can be traced back to the same message identifier.
 
@@ -144,7 +143,7 @@ D-Fence is closer to this project because it presents a multi-module phishing em
 
 Attachment handling introduces a second research thread. Rudd, Harang, and Saxe study malicious email attachment detection across heterogeneous file types and show that attachment-focused ML can be treated as a separate detection problem \cite{rudd2018meade}. Zhang et al. show that MIME parsing ambiguity can let adversaries evade email attachment detectors, strengthening the case for preserving the raw message and separating MIME parsing from later detector outputs \cite{zhang2024inbox}. Cloud Email Analyzer follows this separation: the parser extracts evidence and file artifacts, the scanner evaluates each attachment, and the dashboard exposes per-file scan state instead of collapsing all file evidence into an opaque message label.
 
-The workflow layer is related to serverless computing research. Serverless systems are commonly decomposed into small stateless functions that communicate through storage and cloud services, while workflow orchestration coordinates longer application logic \cite{marin2022serverless}. Triggerflow and related work discuss state machines, DAGs, and trigger-based orchestration as patterns for composing event-driven functions \cite{garcia2021triggerflow}. Cloud Email Analyzer applies this pattern to email security: SES and Route53 provide ingress, EventBridge carries the normalized event, Step Functions coordinates analysis stages, S3 stores large artifacts, and DynamoDB stores queryable state.
+The workflow layer is related to serverless computing research. Serverless systems are commonly decomposed into small stateless functions that communicate through storage and cloud services, while workflow orchestration coordinates longer application logic \cite{marin2022serverless}. Triggerflow and related work discuss state machines, DAGs, and trigger-based orchestration as patterns for composing event-driven functions \cite{garcia2021triggerflow}. Cloud Email Analyzer applies this pattern to email security: SES and Route53 provide ingress, EventBridge carries the normalized event, Step Functions coordinates analysis stages, S3 stores large artifacts, and DynamoDB stores queryable state. The positioning is summarized in Table~\ref{tab:related}.
 
 \input{tables/related.tex}
 
@@ -158,7 +157,7 @@ The system requirements can be grouped into six categories. First, raw-message p
 
 \input{tables/components.tex}
 
-Table~\ref{tab:components} summarizes the main components. The design is intentionally practical: small services perform bounded tasks, object storage carries large artifacts, and DynamoDB tables store queryable state for the API and dashboard. This division keeps the system understandable for presentation while preserving the vocabulary of production event-driven systems.
+Table~\ref{tab:components} summarizes the main components. The design is intentionally practical: small services perform bounded tasks, object storage carries large artifacts, and DynamoDB tables store queryable state for the API and dashboard. This division keeps large evidence objects outside query rows while preserving clear event-driven boundaries.
 
 \section{Event-Driven AWS Architecture}
 
@@ -175,13 +174,13 @@ Figure~\ref{fig:architecture} shows the end-to-end cloud shape. EventBridge is u
 
 The canonical event follows EventBridge conventions with a source, a detail type, and a detail object. The detail contains identity, envelope, header, storage, and upstream-verdict metadata. The important architectural point is that later pipeline stages depend on the event contract, not on the exact mail-receipt mechanism. This keeps ingestion, processing, and review loosely coupled.
 
-The repository also defines deterministic identifiers. A stable message identifier can be derived from the SHA-256 digest of raw message bytes. Attachment identifiers combine an index, a SHA-256 prefix, and a sanitized filename. These identifiers are not proofs of safety, but they make artifact pointers and database rows predictable across repeated processing. That property matters for idempotency: duplicate event handling should update the same logical message rather than creating unrelated records.
+The implementation also defines deterministic identifiers. A stable message identifier can be derived from the SHA-256 digest of raw message bytes. Attachment identifiers combine an index, a SHA-256 prefix, and a sanitized filename. These identifiers are not proofs of safety, but they make artifact pointers and database rows predictable across repeated processing. That property matters for idempotency: duplicate event handling should update the same logical message rather than creating unrelated records.
 
-LocalStack is part of the development workflow because it lets the team run AWS-shaped services locally while validating the same boundaries: object storage, event routing, workflow orchestration, Lambda-style execution, and DynamoDB state. The paper keeps that detail in the engineering background. The system being documented is the AWS-oriented architecture in Fig.~\ref{fig:architecture}.
+LocalStack is used in development to run AWS-shaped services locally while validating the same boundaries: object storage, event routing, workflow orchestration, Lambda-style execution, and DynamoDB state. The operational architecture remains the AWS-oriented flow shown in Fig.~\ref{fig:architecture}.
 
 \section{Processing Pipeline and Data Model}
 
-The Step Functions workflow is sequential in the current design:
+The Step Functions workflow is sequential in the current design. Equation~\ref{eq:pipeline} gives the ordered execution chain:
 
 \begin{equation}
 \begin{aligned}
@@ -195,7 +194,7 @@ The Step Functions workflow is sequential in the current design:
 \label{eq:pipeline}
 \end{equation}
 
-Each task includes retry behavior, and the stages are written so repeated invocations update deterministic records rather than creating a new logical message each time. The design could later parallelize ML and attachment scanning because both depend on parsed artifacts, not on each other. The sequential flow is easier to observe, explain, and audit.
+Each task includes retry behavior, and the stages are written so repeated invocations update deterministic records rather than creating a new logical message each time. Figure~\ref{fig:pipeline} separates the main control-flow chain from the persistence layer: parsed artifacts are written to S3, while final message state is written to DynamoDB. \texttt{PhishingML} reads parsed text, and \texttt{AttachmentScan} reads extracted attachment artifacts. The bidirectional boundary indicates that workflow stages both read persisted artifacts and write updated state. The design could later parallelize ML and attachment scanning because both depend on parsed artifacts, not on each other. The sequential flow is easier to observe, explain, and audit.
 
 \begin{figure}[!htbp]
 \centering
@@ -222,14 +221,13 @@ Each task includes retry behavior, and the stages are written so repeated invoca
 
 DynamoDB is used as the application database. Its core model consists of tables, items, attributes, and primary keys \cite{aws_dynamodb_components}, which fits the project because the system needs direct message lookups, user inbox queries, attachment queries by message, and audit records by tenant/time.
 
-\begin{figure}[!htbp]
-\centering
-\resizebox{0.86\textwidth}{!}{\input{figures/data_model.tex}}
-\caption{Main persisted entities and artifact pointers used by the analysis workflow.}
+\begin{center}
+\resizebox{0.76\textwidth}{!}{\input{figures/data_model.tex}}
+\captionof{figure}{Main persisted entities and artifact pointers used by the analysis workflow.}
 \label{fig:data-model}
-\end{figure}
+\end{center}
 
-Figure~\ref{fig:data-model} summarizes the stored entities. The message ledger is the central record. Inbox projections are optimized for user-specific inbox queries. Attachment records hold per-file metadata, storage pointers, hashes, and scan results. Users and mailboxes support authentication and recipient ownership. Audit records store security-relevant actions.
+Figure~\ref{fig:data-model} summarizes the stored entities. The message ledger is the central record. Inbox projections are optimized for user-specific inbox queries. Attachment records hold per-file metadata, storage pointers, hashes, and scan results. Users and mailboxes support authentication and recipient ownership. Audit records store security-relevant actions. Table~\ref{tab:artifacts} lists the same storage split by store, key shape, and purpose.
 
 \input{tables/artifacts.tex}
 
@@ -241,9 +239,9 @@ The detection layer has three parts: phishing text classification, attachment sc
 
 \subsection{Text Classification}
 
-The ML inference stage loads a packaged phishing model and a packaged TF-IDF vectorizer. The training code defines a TF-IDF vectorizer with 15,000 maximum features, word unigrams and bigrams, minimum document frequency of 10, and English stop-word removal. It compares logistic regression, multinomial Naive Bayes, random forest, and a linear SGD classifier. The training script selects the best model by validation accuracy, while the checked-in evaluation plot also reports precision, recall, and F1. The packaged classifier follows the SGD path with modified Huber loss and balanced class weights.
+The ML inference stage loads a packaged phishing model and a packaged TF-IDF vectorizer. The model-training pipeline represents each message with a TF-IDF vectorizer using 15,000 maximum features, word unigrams and bigrams, minimum document frequency of 10, and English stop-word removal. Four candidate classifiers were evaluated: logistic regression, multinomial Naive Bayes, random forest, and a linear SGD classifier. The selected packaged classifier is the SGD model with modified Huber loss and balanced class weights; the evaluation also records precision, recall, and F1 alongside validation accuracy.
 
-The text normalization step lowercases input, replaces URL-like tokens, removes selected mail headers and corpus-specific tokens, replaces digits, removes most punctuation except common email characters, and collapses whitespace. The cleaned subject and body text are then transformed into TF-IDF features. scikit-learn is the underlying ML library; its JMLR paper describes it as a Python module covering supervised and unsupervised learning algorithms with a consistent API \cite{pedregosa2011scikit}. A compact formulation of the representation is:
+The text normalization step lowercases input, replaces URL-like tokens, removes selected mail headers and corpus-specific tokens, replaces digits, removes most punctuation except common email characters, and collapses whitespace. The cleaned subject and body text are then transformed into TF-IDF features. Scikit-learn is the underlying ML library; its JMLR paper describes it as a Python module covering supervised and unsupervised learning algorithms with a consistent API \cite{pedregosa2011scikit}. Equation~\ref{eq:tfidf} gives a compact formulation of the representation:
 
 \begin{equation}
 x_{d,t} = \mathrm{tf}(t,d) \cdot \log\left(\frac{1 + N}{1 + \mathrm{df}(t)}\right),
@@ -252,17 +250,17 @@ x_{d,t} = \mathrm{tf}(t,d) \cdot \log\left(\frac{1 + N}{1 + \mathrm{df}(t)}\righ
 
 where \(x_{d,t}\) is the feature value for term \(t\) in document \(d\), \(N\) is the number of training documents, and \(\mathrm{df}(t)\) is the number of documents containing term \(t\). The exact smoothing and normalization are delegated to the saved vectorizer parameters.
 
-The inference output is an ML object with verdict, category, score stored in the \texttt{confidence} field, model version, model source, and feature version. Prediction value \(1\) is interpreted as \texttt{PHISHING}; other predictions become \texttt{LOW\_RISK}. The choice of a TF-IDF linear model is conservative but defensible for a workflow stage because it is fast, explainable at the feature level, and supported by strong baselines in phishing email literature \cite{fette2007learning,altawil2024comparative}.
+The inference output is an ML object with verdict, category, score stored in the \texttt{confidence} field, model version, model source, and feature version. In the current binary label mapping, class \(1\) maps to \texttt{PHISHING} with category \texttt{credential\_theft}, while class \(0\) maps to \texttt{LOW\_RISK} with category \texttt{ham}. This mapping is an intermediate classifier interface: later versions can replace the hard class mapping with calibrated thresholds or additional categories. A TF-IDF linear model fits the workflow stage because it is fast, inspectable at the feature level, and supported by strong baselines in phishing email literature \cite{fette2007learning,altawil2024comparative}.
 
 \subsection{Attachment Scanning}
 
-The attachment scanner uses records produced by the parser. For each attachment, it reads the object, computes SHA-256, invokes \texttt{clamscan}, and maps the scanner result into \texttt{SAFE}, \texttt{UNSAFE}, \texttt{SCAN\_ERROR}, or \texttt{TIMEOUT}. The scanner also stores any ClamAV signature string returned by the command. The production engineering track includes a managed signature update lifecycle so scanner definitions remain fresh over time.
+The attachment scanner uses records produced by the parser. For each attachment, it reads the object, computes SHA-256, invokes \texttt{clamscan}, and maps scanner exit code \(0\) to \texttt{SAFE}, exit code \(1\) to \texttt{UNSAFE}, timeouts to \texttt{TIMEOUT}, and other unexpected results to \texttt{SCAN\_ERROR}. The scanner also stores any ClamAV signature string returned by the command. The production engineering track includes a managed signature update lifecycle so scanner definitions remain fresh over time.
 
 The project deliberately stores attachment scan data per file rather than only at the message level. This lets the dashboard show which file triggered an unsafe verdict, the filename, content type, size, SHA-256 hash, signature, scan status, and download action. It also allows the aggregate stage to recompute message-level virus state from child records.
 
 \subsection{Final Verdict Rules}
 
-Final verdict aggregation is intentionally simple. Let \(m\) be the ML verdict and \(v\) be the aggregate attachment verdict. The current implementation can be written as:
+Final verdict aggregation is intentionally simple. Let \(m\) be the ML verdict and \(v\) be the aggregate attachment verdict. The rule in Equation~\ref{eq:verdict} captures the current implementation:
 
 \begin{equation}
 F(m,v)=
@@ -280,7 +278,7 @@ The aggregate virus verdict is \texttt{SAFE} when there are no attachments or al
 
 The backend is a FastAPI application with authentication routes, message routes, admin routes, audit logic, and a Lambda-compatible handler. The frontend is a React application. The important security boundary is server-side authorization: frontend navigation changes the user experience, but the API decides which records a caller may read or modify.
 
-Authentication currently uses application-managed HS256 JWTs backed by user records. Password verification uses PBKDF2-SHA256 with per-user salt and iteration metadata stored in the user record. Tokens carry subject, email, role, tenant, and expiry claims. The planned AWS identity track is Cognito migration so user and token management can be delegated to a managed identity service.
+Authentication currently uses application-managed HS256 JWTs backed by user records. Password verification uses PBKDF2-SHA256 with per-user salt and iteration metadata stored in the user record. After login, each JWT includes signed claims for the user identifier, login email, role, tenant, and expiry time; the API reads those claims before authorizing message and administration requests. The planned AWS identity track is Cognito migration so user and token management can be delegated to a managed identity service.
 
 Normal users can list and view only messages mapped to their user identifier through inbox projections and owner identifiers. Administrators can access broader review endpoints. Message detail, indicators, timeline, attachment list, and attachment download repeat the same ownership-or-admin check. This repetition matters because direct API calls should not bypass frontend navigation.
 
@@ -290,22 +288,27 @@ Administrators receive additional review screens. The admin dashboard shows secu
 
 \section{Evaluation Results}
 
-The strongest quantitative evidence in the repository is the set of checked-in ML evaluation artifacts. They report a comparison between logistic regression, multinomial Naive Bayes, random forest, and the SGD-based classifier used by inference. The classifier comparison plot shows the SGD model as the best of the four evaluated models, with accuracy, precision, recall, and F1 all near 0.983. Logistic regression is close behind, while Naive Bayes and random forest trail on the same metrics. These values are treated as training-bundle evidence for the packaged model, not as claims about live organizational traffic.
+Figure~\ref{fig:confusion-matrix} reports the internal validation confusion matrix: 7,748 true negatives, 158 false positives, 152 false negatives, and 7,649 true positives. The diagonal entries are the correctly classified messages, while the off-diagonal entries show the two error types. Computed from those counts, internal validation accuracy is 0.9803. The class-1 precision, recall, and F1 are approximately 0.9798, 0.9805, and 0.9801.
 
 \begin{figure}[!htbp]
 \centering
-\resizebox{0.96\textwidth}{!}{\input{figures/ml_comparison.tex}}
-\caption{Classifier comparison reconstructed from the checked-in ML evaluation plot.}
+\input{figures/confusion_matrix.tex}
+\caption{Internal validation confusion matrix for the packaged phishing classifier.}
+\label{fig:confusion-matrix}
+\end{figure}
+
+The quantitative classifier evaluation compares logistic regression, multinomial Naive Bayes, random forest, and the SGD-based classifier used by inference. Figure~\ref{fig:ml-comparison} uses a 0.90--1.00 y-axis so the differences between high-scoring classifiers remain visible. It shows the SGD model as marginally above the other evaluated models on the internal validation split, with accuracy, precision, recall, and F1 around 0.980. Logistic regression is close behind, while Naive Bayes and random forest trail on the same metrics. These values describe the training and validation setting used for the packaged model, not live organizational traffic.
+
+\begin{figure}[!htbp]
+\centering
+\resizebox{0.9\textwidth}{!}{\input{figures/ml_comparison.tex}}
+\caption{Classifier comparison based on the ML evaluation results, with the y-axis focused on 0.90--1.00.}
 \label{fig:ml-comparison}
 \end{figure}
 
-The internal validation confusion matrix reports 7,748 true negatives, 158 false positives, 152 false negatives, and 7,649 true positives. Computed from those visible counts, internal validation accuracy is 0.9803. The class-1 precision, recall, and F1 are approximately 0.9798, 0.9805, and 0.9801. The Nazario split matrix reports 17 false negatives and 296 true positives, corresponding to 0.9457 class-1 recall on that artifact.
+The training corpus combines CEAS\_08 as the largest source at 49.8\%, followed by Enron at 37.7\%, SpamAssassin at 7.4\%, Ling at 3.6\%, and Nazario at 1.6\%. Enron is a well-known email corpus introduced for email classification research \cite{klimt2004enron}; the other named sources are represented in curated phishing-email and spam-corpus distributions \cite{champa2024curated,spamassassin_corpus,fraudulent_email_corpus}. These results support the use of the packaged classifier inside the triage workflow while keeping the evaluation scope limited to the training and validation data.
 
-\input{tables/ml_results.tex}
-
-The dataset distribution plot reports CEAS\_08 as the largest source at 49.8\%, followed by Enron at 37.7\%, SpamAssassin at 7.4\%, Ling at 3.6\%, and Nazario at 1.6\%. Enron is a well-known email corpus introduced for email classification research \cite{klimt2004enron}; the other named sources are represented in curated phishing-email and spam-corpus distributions \cite{champa2024curated,spamassassin_corpus,fraudulent_email_corpus}. The comparison plot labels Nazario split accuracy as 0.946 and Nigerian\_Fraud accuracy as 0.991. ROC plots label both train and validation AUC as 1.00, while the log-loss plots show low training and validation loss values. These results are best read as artifacts of the current training bundle and as support for using the packaged classifier inside the triage workflow.
-
-Implementation validation is broader than the ML graphs. Unit tests cover parser behavior for body extraction, attachment extraction, artifact writing, and failure marking. API tests cover authorized and unauthorized attachment download, missing attachments, paginated listing, and audit-log failure handling. Ledger tests cover initial row creation and duplicate-message behavior. Together, these checks support the claim that the paper's main stages are not merely diagrammed; they are represented by executable components.
+Beyond the classifier evaluation, implementation tests cover the processing and review path. Unit tests cover parser behavior for body extraction, attachment extraction, artifact writing, and failure marking. API tests cover authorized and unauthorized attachment download, missing attachments, paginated listing, and audit-log failure handling. Ledger tests cover initial row creation and duplicate-message behavior. These checks exercise parser behavior, API authorization, ledger idempotency, and audit handling across the main workflow stages.
 
 \section{Limitations and Future Work}
 
